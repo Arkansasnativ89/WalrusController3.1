@@ -8,6 +8,7 @@ interface KnobProps {
   onChange: (value: number) => void;
   size?: number;
   color?: string;
+  hideLabel?: boolean;
 }
 
 const START_ANGLE = 225;
@@ -26,7 +27,7 @@ function describeArc(cx: number, cy: number, r: number, startAngle: number, endA
   return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 0 ${end.x} ${end.y}`;
 }
 
-export function Knob({ value, min, max, label, onChange, size = 64, color }: KnobProps) {
+export function Knob({ value, min, max, label, onChange, size = 64, color, hideLabel }: KnobProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
@@ -204,12 +205,14 @@ export function Knob({ value, min, max, label, onChange, size = 64, color }: Kno
         </div>
       </div>
 
-      <span
-        className="text-xs text-center leading-tight"
-        style={{ color: 'var(--text-secondary)', width: size, display: 'block', wordBreak: 'break-word' }}
-      >
-        {label}
-      </span>
+      {!hideLabel && (
+        <span
+          className="text-xs text-center leading-tight"
+          style={{ color: 'var(--text-secondary)', width: size, display: 'block', wordBreak: 'break-word' }}
+        >
+          {label}
+        </span>
+      )}
     </div>
   );
 }

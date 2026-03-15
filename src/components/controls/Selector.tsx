@@ -6,22 +6,31 @@ interface SelectorProps {
   options: ParameterOption[];
   label: string;
   onChange: (value: number) => void;
+  /** Hide the built-in label text (use when a parent cell provides its own label) */
+  hideLabel?: boolean;
+  /** Force DropdownSelector regardless of option count */
+  dropdown?: boolean;
+  /** Make the dropdown button fill its container width */
+  fullWidth?: boolean;
 }
 
-export function Selector({ value, options, label, onChange }: SelectorProps) {
+export function Selector({ value, options, label, onChange, hideLabel, dropdown, fullWidth }: SelectorProps) {
+  if (dropdown) {
+    return <DropdownSelector value={value} options={options} label={label} onChange={onChange} hideLabel={hideLabel} fullWidth={fullWidth} />;
+  }
   if (options.length === 6) {
-    return <GridSelector value={value} options={options} label={label} onChange={onChange} />;
+    return <GridSelector value={value} options={options} label={label} onChange={onChange} hideLabel={hideLabel} />;
   }
   if (options.length <= 5) {
-    return <SegmentedSelector value={value} options={options} label={label} onChange={onChange} />;
+    return <SegmentedSelector value={value} options={options} label={label} onChange={onChange} hideLabel={hideLabel} />;
   }
-  return <DropdownSelector value={value} options={options} label={label} onChange={onChange} />;
+  return <DropdownSelector value={value} options={options} label={label} onChange={onChange} hideLabel={hideLabel} fullWidth={fullWidth} />;
 }
 
-function GridSelector({ value, options, label, onChange }: SelectorProps) {
+function GridSelector({ value, options, label, onChange, hideLabel }: SelectorProps) {
   return (
     <div className="flex flex-col gap-1.5">
-      <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>{label}</span>
+      {!hideLabel && <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>{label}</span>}
       <div
         className="grid gap-1"
         style={{ gridTemplateColumns: '1fr 1fr' }}
@@ -50,10 +59,10 @@ function GridSelector({ value, options, label, onChange }: SelectorProps) {
   );
 }
 
-function SegmentedSelector({ value, options, label, onChange }: SelectorProps) {
+function SegmentedSelector({ value, options, label, onChange, hideLabel }: SelectorProps) {
   return (
     <div className="flex flex-col gap-1.5">
-      <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>{label}</span>
+      {!hideLabel && <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>{label}</span>}
       <div
         className="flex rounded-md overflow-hidden"
         style={{ border: '1px solid var(--border)' }}
@@ -81,7 +90,7 @@ function SegmentedSelector({ value, options, label, onChange }: SelectorProps) {
   );
 }
 
-function DropdownSelector({ value, options, label, onChange }: SelectorProps) {
+function DropdownSelector({ value, options, label, onChange, hideLabel, fullWidth }: SelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -119,7 +128,7 @@ function DropdownSelector({ value, options, label, onChange }: SelectorProps) {
 
   return (
     <div className="flex flex-col gap-1.5 relative" ref={containerRef}>
-      <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>{label}</span>
+      {!hideLabel && <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>{label}</span>}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="px-3 py-1.5 rounded-md text-xs text-left flex items-center justify-between gap-2"
@@ -127,7 +136,8 @@ function DropdownSelector({ value, options, label, onChange }: SelectorProps) {
           background: 'var(--surface-raised)',
           border: '1px solid var(--border)',
           color: 'var(--text-primary)',
-          minWidth: '140px',
+          minWidth: fullWidth ? '0' : '140px',
+          width: fullWidth ? '100%' : undefined,
         }}
       >
         <span className="truncate">{selectedLabel}</span>
