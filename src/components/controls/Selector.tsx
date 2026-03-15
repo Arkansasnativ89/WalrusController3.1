@@ -64,7 +64,7 @@ function SegmentedSelector({ value, options, label, onChange, hideLabel }: Selec
     <div className="flex flex-col gap-1.5">
       {!hideLabel && <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>{label}</span>}
       <div
-        className="flex rounded-md overflow-hidden"
+        className="flex w-fit rounded-md overflow-hidden"
         style={{ border: '1px solid var(--border)' }}
       >
         {options.map((opt) => {
