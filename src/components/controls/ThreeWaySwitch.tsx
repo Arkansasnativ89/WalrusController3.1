@@ -23,10 +23,10 @@ export function ThreeWaySwitch({ value, zones, label, onChange }: ThreeWaySwitch
   const activeIndex = getActiveZone(value, zones);
 
   return (
-    <div className="flex flex-col items-center gap-1.5">
-      <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>{label}</span>
+    <div className="flex flex-col gap-1.5 w-full">
+      <span className="text-center" style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>{label}</span>
       <div
-        className="flex rounded-md overflow-hidden"
+        className="flex w-full rounded-md overflow-hidden"
         style={{ border: '1px solid var(--border)' }}
       >
         {zones.map((zone, i) => {
@@ -35,7 +35,7 @@ export function ThreeWaySwitch({ value, zones, label, onChange }: ThreeWaySwitch
             <button
               key={zone.value}
               onClick={() => onChange(zone.value)}
-              className="relative px-3 py-1.5 text-xs font-medium transition-led"
+              className="relative flex-1 px-2 py-1.5 text-xs font-medium transition-led"
               style={{
                 background: isActive ? 'var(--accent-navy)' : 'var(--surface-raised)',
                 color: isActive ? 'var(--accent-cyan)' : 'var(--text-secondary)',

@@ -168,18 +168,25 @@ const GROUP_LABELS: Record<string, string> = {
 
 const R1_GROUP_ORDER = [
   'program',
-  'reverb',
   'dynamics',
   'modulation',
+  'reverb',
   'tone',
   'switches',
   'system',
 ];
 
-/** Groups rendered side-by-side in a 2-column grid */
+/** Groups rendered side-by-side as paired 2-column rows */
 const R1_GRID_ROWS: [string, string][] = [
   ['dynamics', 'modulation'],
 ];
+
+/** Groups whose inner controls are rendered in a fixed N-column grid */
+const R1_COLUMNS: Record<string, number> = {
+  reverb: 3,
+  tone: 3,
+  switches: 3,
+};
 
 function R1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: string }) {
   const { renderParam } = useParameterRenderer(deviceId, profile);
@@ -197,7 +204,7 @@ function R1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: str
     params.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }
 
-  // Build ordered render list, pairing grid-row groups side-by-side
+  // Build ordered render list
   const seen = new Set<string>();
   const elements: React.ReactNode[] = [];
 
@@ -223,7 +230,13 @@ function R1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: str
       const params = groups.get(groupKey);
       if (params?.length) {
         elements.push(
-          <ControlSection key={groupKey} groupKey={groupKey} params={params} renderParam={renderParam} />,
+          <ControlSection
+            key={groupKey}
+            groupKey={groupKey}
+            params={params}
+            renderParam={renderParam}
+            columns={R1_COLUMNS[groupKey]}
+          />,
         );
       }
     }
@@ -234,23 +247,33 @@ function R1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: str
 
 /* ── ACS1 Channel Strip Layout ─────────────────────────────────── */
 
+/** Top config strip: all four amp/cab/eq selector groups in one 4-col row */
+const ACS1_CONFIG_GROUPS = ['amp-model', 'cabinet', 'amp', 'eq'] as const;
+
 /** Paired rows: each entry is [leftGroup, rightGroup] rendered side by side */
 const ACS1_GRID_ROWS: [string, string | null][] = [
-  ['amp-model', 'cabinet'],
-  ['amp', 'eq'],
   ['boost', 'gate'],
   ['post-amp-eq', 'filters'],
-  ['room', 'system'],
 ];
+
+/** Groups with fixed inner column counts */
+const ACS1_COLUMNS: Record<string, number> = {
+  room: 3,
+};
+
+/** Remaining groups rendered after the paired rows, in order */
+const ACS1_REMAINING_ORDER = ['room', 'system'];
 
 function ControlSection({
   groupKey,
   params,
   renderParam,
+  columns,
 }: {
   groupKey: string;
   params: DeviceParameter[];
   renderParam: (p: DeviceParameter) => React.ReactNode;
+  columns?: number;
 }) {
   return (
     <div className="flex-1 min-w-0">
@@ -263,9 +286,18 @@ function ControlSection({
       >
         {GROUP_LABELS[groupKey] ?? groupKey}
       </h3>
-      <div className="flex flex-wrap gap-4 items-start">
-        {params.map(renderParam)}
-      </div>
+      {columns !== undefined ? (
+        <div
+          className="grid gap-4 items-start justify-items-center"
+          style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}
+        >
+          {params.map(renderParam)}
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-4 items-start">
+          {params.map(renderParam)}
+        </div>
+      )}
     </div>
   );
 }
@@ -299,18 +331,35 @@ function ACS1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: s
     params.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }
 
-  // Collect groups that appear in the grid
-  const gridGroupKeys = new Set(ACS1_GRID_ROWS.flat().filter(Boolean) as string[]);
+  // Collect all handled keys so remaining groups can be identified
+  const handledKeys = new Set<string>([
+    ...ACS1_CONFIG_GROUPS,
+    ...ACS1_GRID_ROWS.flat().filter(Boolean) as string[],
+  ]);
 
-  // Any remaining groups not in the grid
-  const extraGroups: string[] = [];
-  for (const key of groups.keys()) {
-    if (!gridGroupKeys.has(key)) extraGroups.push(key);
+  // Remaining groups in declared order, then any unlisted extras
+  const remainingSeen = new Set<string>();
+  const remainingGroups: string[] = [];
+  for (const key of [...ACS1_REMAINING_ORDER, ...groups.keys()]) {
+    if (!remainingSeen.has(key) && !handledKeys.has(key) && groups.has(key)) {
+      remainingSeen.add(key);
+      remainingGroups.push(key);
+    }
   }
 
   return (
     <div className="space-y-5">
-      {/* Paired grid rows */}
+      {/* Config strip: Amp Model | Cabinet | Amp | EQ in one 4-column row */}
+      <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+        {ACS1_CONFIG_GROUPS.map((key) => {
+          const params = groups.get(key);
+          return params?.length ? (
+            <ControlSection key={key} groupKey={key} params={params} renderParam={renderParam} />
+          ) : <div key={key} />;
+        })}
+      </div>
+
+      {/* Paired rows: Boost|Gate then Post-Amp EQ|Filters */}
       {ACS1_GRID_ROWS.map(([left, right], i) => {
         const leftParams = groups.get(left);
         const rightParams = right ? groups.get(right) : undefined;
@@ -331,12 +380,18 @@ function ACS1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: s
         );
       })}
 
-      {/* Any extra groups not in the grid */}
-      {extraGroups.map((groupKey) => {
+      {/* Room (3-col knob grid), System toggles, any extras */}
+      {remainingGroups.map((groupKey) => {
         const params = groups.get(groupKey);
         if (!params?.length) return null;
         return (
-          <ControlSection key={groupKey} groupKey={groupKey} params={params} renderParam={renderParam} />
+          <ControlSection
+            key={groupKey}
+            groupKey={groupKey}
+            params={params}
+            renderParam={renderParam}
+            columns={ACS1_COLUMNS[groupKey]}
+          />
         );
       })}
     </div>
