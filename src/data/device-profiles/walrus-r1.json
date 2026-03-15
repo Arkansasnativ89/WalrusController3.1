@@ -1,0 +1,251 @@
+{
+  "id": "walrus-r1",
+  "name": "Walrus Audio R1",
+  "manufacturer": "Walrus Audio",
+  "defaultChannel": 4,
+  "bypassCC": 30,
+  "category": "reverb",
+  "midiOutputName": "HX Effects",
+  "stereoLinked": false,
+  "ccSendOrder": [
+    "r1-prog", "r1-lo", "r1-high", "r1-x",
+    "r1-decay", "r1-rate", "r1-depth", "r1-pre-delay",
+    "r1-swell", "r1-mix", "r1-bypass", "r1-sustain"
+  ],
+  "parameters": [
+    {
+      "id": "r1-prog",
+      "label": "Reverb Program",
+      "cc": 23,
+      "type": "select",
+      "min": 1,
+      "max": 6,
+      "default": 1,
+      "group": "program",
+      "order": 0,
+      "description": "Reverb algorithm. Changes behavior of X, Rate, and Depth parameters.",
+      "options": [
+        { "label": "Spring", "value": 1 },
+        { "label": "Hall", "value": 2 },
+        { "label": "Plate", "value": 3 },
+        { "label": "BFR", "value": 4 },
+        { "label": "RFRCT", "value": 5 },
+        { "label": "Air", "value": 6 }
+      ]
+    },
+    {
+      "id": "r1-decay",
+      "label": "Decay",
+      "cc": 3,
+      "type": "continuous",
+      "min": 0,
+      "max": 127,
+      "default": 64,
+      "group": "reverb",
+      "order": 1,
+      "description": "Reverb tail length"
+    },
+    {
+      "id": "r1-swell",
+      "label": "Swell / Duck",
+      "cc": 14,
+      "type": "bipolar",
+      "min": 0,
+      "max": 127,
+      "default": 64,
+      "centerValue": 64,
+      "bipolarLabels": { "low": "Swell", "high": "Duck" },
+      "group": "dynamics",
+      "order": 2,
+      "description": "0-63: Volume swell (lower = longer fade-in). 64: Neutral. 65-127: Ducking (higher = more ducking)"
+    },
+    {
+      "id": "r1-mix",
+      "label": "Mix",
+      "cc": 15,
+      "type": "continuous",
+      "min": 0,
+      "max": 127,
+      "default": 50,
+      "group": "reverb",
+      "order": 3,
+      "description": "Dry/wet ratio. 0 = fully dry, 127 = fully wet"
+    },
+    {
+      "id": "r1-rate",
+      "label": "Rate",
+      "cc": 20,
+      "type": "continuous",
+      "min": 0,
+      "max": 127,
+      "default": 40,
+      "group": "modulation",
+      "order": 4,
+      "description": "Modulation speed within the reverb"
+    },
+    {
+      "id": "r1-depth",
+      "label": "Depth",
+      "cc": 21,
+      "type": "continuous",
+      "min": 0,
+      "max": 127,
+      "default": 40,
+      "group": "modulation",
+      "order": 5,
+      "description": "Modulation intensity within the reverb"
+    },
+    {
+      "id": "r1-pre-delay",
+      "label": "Pre Delay",
+      "cc": 22,
+      "type": "continuous",
+      "min": 0,
+      "max": 127,
+      "default": 20,
+      "group": "reverb",
+      "order": 6,
+      "description": "Time gap before reverb onset"
+    },
+    {
+      "id": "r1-lo",
+      "label": "Lo",
+      "cc": 24,
+      "type": "continuous",
+      "min": 0,
+      "max": 127,
+      "default": 64,
+      "group": "tone",
+      "order": 7,
+      "description": "Low-frequency content in the reverb tail"
+    },
+    {
+      "id": "r1-high",
+      "label": "High",
+      "cc": 25,
+      "type": "continuous",
+      "min": 0,
+      "max": 127,
+      "default": 64,
+      "group": "tone",
+      "order": 8,
+      "description": "High-frequency content in the reverb tail"
+    },
+    {
+      "id": "r1-x",
+      "label": "X",
+      "cc": 26,
+      "type": "continuous",
+      "min": 0,
+      "max": 127,
+      "default": 64,
+      "group": "tone",
+      "order": 9,
+      "description": "Program-dependent parameter. Changes function based on active reverb program.",
+      "dynamicLabel": {
+        "controlledBy": "r1-prog",
+        "entries": [
+          { "whenValue": 1, "label": "Spring Size", "description": "Short small spring → overt slap-back" },
+          { "whenValue": 2, "label": "Room Size", "description": "Small intimate room → massive arena hall" },
+          { "whenValue": 3, "label": "Grit / Drive", "description": "Clean plate → warm driven signal grit" },
+          { "whenValue": 4, "label": "Diffusion", "description": "Delay taps exposed → smooth reverb wash" },
+          { "whenValue": 5, "label": "Diffusion", "description": "Less diffused/textural → heavily diffused reverb" },
+          { "whenValue": 6, "label": "Shimmer", "description": "Shimmer off (clean reverb) → full +12 semitone octave shimmer" }
+        ]
+      }
+    },
+    {
+      "id": "r1-tweak-switch",
+      "label": "Tweak Switch",
+      "cc": 27,
+      "type": "three_way",
+      "min": 0,
+      "max": 127,
+      "default": 21,
+      "group": "switches",
+      "order": 10,
+      "description": "Hardware switch mirror: Rate / Depth / Pre Delay",
+      "zones": [
+        { "label": "Rate", "value": 21, "range": [0, 42] },
+        { "label": "Depth", "value": 64, "range": [43, 85] },
+        { "label": "Pre Delay", "value": 106, "range": [86, 127] }
+      ]
+    },
+    {
+      "id": "r1-bank-switch",
+      "label": "Bank Switch",
+      "cc": 28,
+      "type": "three_way",
+      "min": 0,
+      "max": 127,
+      "default": 21,
+      "group": "switches",
+      "order": 11,
+      "description": "Bank A / B / C selection",
+      "zones": [
+        { "label": "Bank A", "value": 21, "range": [0, 42] },
+        { "label": "Bank B", "value": 64, "range": [43, 85] },
+        { "label": "Bank C", "value": 106, "range": [86, 127] }
+      ]
+    },
+    {
+      "id": "r1-tune-switch",
+      "label": "Tune Switch",
+      "cc": 29,
+      "type": "three_way",
+      "min": 0,
+      "max": 127,
+      "default": 21,
+      "group": "switches",
+      "order": 12,
+      "description": "Hardware switch mirror: Lo / High / X",
+      "zones": [
+        { "label": "Lo", "value": 21, "range": [0, 42] },
+        { "label": "High", "value": 64, "range": [43, 85] },
+        { "label": "X", "value": 106, "range": [86, 127] }
+      ]
+    },
+    {
+      "id": "r1-bypass",
+      "label": "Bypass",
+      "cc": 30,
+      "type": "toggle",
+      "min": 0,
+      "max": 127,
+      "default": 0,
+      "group": "system",
+      "order": 98,
+      "description": "0 = Bypassed, 127 = Engaged. Bypass mode (true/DSP+true/DSP) set on pedal hardware."
+    },
+    {
+      "id": "r1-sustain",
+      "label": "Sustain / Latch",
+      "cc": 31,
+      "type": "toggle",
+      "min": 0,
+      "max": 127,
+      "default": 0,
+      "group": "system",
+      "order": 99,
+      "description": "Holds current reverb indefinitely. Playing over sustained sound gets same reverb treatment."
+    }
+  ],
+  "presetSlots": [
+    { "pc": 0, "name": "Bank A — Red" },
+    { "pc": 1, "name": "Bank A — Green" },
+    { "pc": 2, "name": "Bank A — Blue" },
+    { "pc": 3, "name": "Bank B — Red" },
+    { "pc": 4, "name": "Bank B — Green" },
+    { "pc": 5, "name": "Bank B — Blue" },
+    { "pc": 6, "name": "Bank C — Red" },
+    { "pc": 7, "name": "Bank C — Green" },
+    { "pc": 8, "name": "Bank C — Blue" },
+    { "pc": 9, "name": "Extended 10" },
+    { "pc": 10, "name": "Extended 11" },
+    { "pc": 11, "name": "Extended 12" },
+    { "pc": 12, "name": "Extended 13" },
+    { "pc": 13, "name": "Extended 14" },
+    { "pc": 14, "name": "Extended 15" },
+    { "pc": 15, "name": "Extended 16" }
+  ]
+}

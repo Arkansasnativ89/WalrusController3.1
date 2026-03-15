@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+/* ── Design Tokens ─────────────────────────────────────────────── */
+:root {
+  --bg: #121212;
+  --surface: #1B1B1B;
+  --surface-raised: #242424;
+  --surface-hover: #2A2A2A;
+  --border: #333333;
+  --border-subtle: #282828;
+
+  --text-primary: #FFFFFF;
+  --text-secondary: #B8B8B8;
+  --text-muted: #666666;
+
+  --accent-navy: #1F3A5A;
+  --accent-cyan: #1ED6D0;
+  --accent-yellow: #E8DC70;
+  --accent-peach: #E8A47D;
+  --accent-coral: #D85A63;
+
+  /* Bank LED colors */
+  --bank-a: #E84040;
+  --bank-b: #40C840;
+  --bank-c: #4080E8;
+
+  /* Derived */
+  --accent-cyan-dim: #1ED6D020;
+  --accent-cyan-glow: #1ED6D040;
+  --accent-coral-dim: #D85A6320;
+  --accent-peach-dim: #E8A47D20;
+  --accent-yellow-dim: #E8DC7020;
+
+  /* Sizing */
+  --navbar-height: 48px;
+  --drawer-width: 340px;
+}
+
+/* ── Base Reset ────────────────────────────────────────────────── */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Scrollbar Styling ─────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ── Utility Classes ───────────────────────────────────────────── */
+.led {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.led-green {
+  background: #40C840;
+  box-shadow: 0 0 6px #40C84080;
+}
+.led-red {
+  background: var(--accent-coral);
+  box-shadow: 0 0 6px var(--accent-coral-dim);
+}
+.led-amber {
+  background: var(--accent-yellow);
+  box-shadow: 0 0 6px var(--accent-yellow-dim);
+}
+.led-cyan {
+  background: var(--accent-cyan);
+  box-shadow: 0 0 6px var(--accent-cyan-glow);
+}
+.led-off {
+  background: var(--text-muted);
+  box-shadow: none;
+}
+
+/* Glow ring for active knobs */
+.glow-ring {
+  box-shadow: 0 0 0 2px var(--accent-cyan), 0 0 12px var(--accent-cyan-glow);
+}
+
+/* Panel surface */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+/* Transition preset */
+.transition-led {
+  transition: background-color 100ms ease, box-shadow 100ms ease;
+}
