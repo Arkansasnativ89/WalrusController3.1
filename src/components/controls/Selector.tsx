@@ -9,10 +9,45 @@ interface SelectorProps {
 }
 
 export function Selector({ value, options, label, onChange }: SelectorProps) {
-  if (options.length <= 6) {
+  if (options.length === 6) {
+    return <GridSelector value={value} options={options} label={label} onChange={onChange} />;
+  }
+  if (options.length <= 5) {
     return <SegmentedSelector value={value} options={options} label={label} onChange={onChange} />;
   }
   return <DropdownSelector value={value} options={options} label={label} onChange={onChange} />;
+}
+
+function GridSelector({ value, options, label, onChange }: SelectorProps) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>{label}</span>
+      <div
+        className="grid gap-1"
+        style={{ gridTemplateColumns: '1fr 1fr' }}
+      >
+        {options.map((opt) => {
+          const isActive = opt.value === value;
+          return (
+            <button
+              key={opt.value}
+              onClick={() => onChange(opt.value)}
+              className="px-2 py-1.5 text-xs font-medium rounded transition-led text-left truncate"
+              title={opt.label}
+              style={{
+                background: isActive ? 'var(--accent-navy)' : 'var(--surface-raised)',
+                color: isActive ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                border: `1px solid ${isActive ? 'var(--accent-cyan)' : 'var(--border)'}`,
+                boxShadow: isActive ? 'inset 0 0 8px var(--accent-cyan-dim)' : 'none',
+              }}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function SegmentedSelector({ value, options, label, onChange }: SelectorProps) {

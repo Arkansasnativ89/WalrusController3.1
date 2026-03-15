@@ -9,14 +9,18 @@ import type { DeviceParameter, DeviceProfile } from '@/types/device-profile';
 
 /* ── Render helpers ────────────────────────────────────────────── */
 
-function useParameterRenderer(deviceId: string) {
-  const profile = useDeviceStore((s) => s.getProfile(deviceId));
+function useParameterRenderer(
+  deviceId: string,
+  profile: DeviceProfile | undefined,
+  options?: { hideLink?: boolean },
+) {
   const deviceState = useDeviceStore((s) => s.devices[deviceId]);
   const setParameterValue = useDeviceStore((s) => s.setParameterValue);
   const setGroupLinked = useDeviceStore((s) => s.setGroupLinked);
 
   const parameterValues = deviceState?.parameterValues ?? {};
   const linkedGroups = deviceState?.linkedGroups ?? {};
+  const hideLink = options?.hideLink ?? false;
 
   const getDynamicLabel = (param: DeviceParameter): string => {
     if (!param.dynamicLabel) return param.label;
@@ -25,8 +29,6 @@ function useParameterRenderer(deviceId: string) {
     const entry = param.dynamicLabel.entries.find((e) => e.whenValue === controlValue);
     return entry?.label ?? param.label;
   };
-
-  const renderedLinkedIds = new Set<string>();
 
   const renderParam = (param: DeviceParameter): React.ReactNode => {
     const value = parameterValues[param.id] ?? param.default;
@@ -93,9 +95,9 @@ function useParameterRenderer(deviceId: string) {
 
       case 'linked_pair': {
         if (!profile) return null;
-        if (renderedLinkedIds.has(param.id)) return null;
 
         const pairedParam = profile.parameters.find((p) => p.id === param.linkedTo);
+
         if (!pairedParam) {
           return (
             <Knob
@@ -108,9 +110,6 @@ function useParameterRenderer(deviceId: string) {
             />
           );
         }
-
-        renderedLinkedIds.add(param.id);
-        renderedLinkedIds.add(pairedParam.id);
 
         const pairedValue = parameterValues[pairedParam.id] ?? pairedParam.default;
         const group = param.group ?? 'other';
@@ -127,6 +126,7 @@ function useParameterRenderer(deviceId: string) {
             onChangeLeft={(v) => setParameterValue(deviceId, param.id, v)}
             onChangeRight={(v) => setParameterValue(deviceId, pairedParam.id, v)}
             onToggleLink={() => setGroupLinked(deviceId, group, !isLinked)}
+            hideLink={hideLink}
           />
         );
       }
@@ -136,7 +136,7 @@ function useParameterRenderer(deviceId: string) {
     }
   };
 
-  return { renderParam, renderedLinkedIds };
+  return { renderParam };
 }
 
 /* ── Group label map ───────────────────────────────────────────── */
@@ -176,8 +176,13 @@ const R1_GROUP_ORDER = [
   'system',
 ];
 
+/** Groups rendered side-by-side in a 2-column grid */
+const R1_GRID_ROWS: [string, string][] = [
+  ['dynamics', 'modulation'],
+];
+
 function R1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: string }) {
-  const { renderParam } = useParameterRenderer(deviceId);
+  const { renderParam } = useParameterRenderer(deviceId, profile);
 
   // Group parameters
   const groups = new Map<string, DeviceParameter[]>();
@@ -192,60 +197,98 @@ function R1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: str
     params.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }
 
-  // Ordered group list
-  const orderedGroups = R1_GROUP_ORDER.filter((g) => groups.has(g));
-  for (const key of groups.keys()) {
-    if (!orderedGroups.includes(key)) orderedGroups.push(key);
+  // Build ordered render list, pairing grid-row groups side-by-side
+  const seen = new Set<string>();
+  const elements: React.ReactNode[] = [];
+
+  for (const groupKey of [...R1_GROUP_ORDER, ...groups.keys()]) {
+    if (seen.has(groupKey)) continue;
+    seen.add(groupKey);
+
+    const gridRow = R1_GRID_ROWS.find(([left]) => left === groupKey);
+    if (gridRow) {
+      const [left, right] = gridRow;
+      seen.add(right);
+      const leftParams = groups.get(left);
+      const rightParams = groups.get(right);
+      if (leftParams?.length || rightParams?.length) {
+        elements.push(
+          <div key={`${left}-${right}`} className="grid gap-5" style={{ gridTemplateColumns: '1fr 1fr' }}>
+            {leftParams?.length ? <ControlSection groupKey={left} params={leftParams} renderParam={renderParam} /> : <div />}
+            {rightParams?.length ? <ControlSection groupKey={right} params={rightParams} renderParam={renderParam} /> : <div />}
+          </div>,
+        );
+      }
+    } else {
+      const params = groups.get(groupKey);
+      if (params?.length) {
+        elements.push(
+          <ControlSection key={groupKey} groupKey={groupKey} params={params} renderParam={renderParam} />,
+        );
+      }
+    }
   }
 
-  return (
-    <div className="space-y-5">
-      {orderedGroups.map((groupKey) => {
-        const params = groups.get(groupKey);
-        if (!params || params.length === 0) return null;
-        return (
-          <div key={groupKey}>
-            <h3
-              className="text-[10px] font-semibold uppercase tracking-widest mb-3 pb-1"
-              style={{
-                color: 'var(--text-muted)',
-                borderBottom: '1px solid var(--border-subtle)',
-              }}
-            >
-              {GROUP_LABELS[groupKey] ?? groupKey}
-            </h3>
-            <div className="flex flex-wrap gap-5 items-start">
-              {params.map(renderParam)}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
+  return <div className="space-y-5">{elements}</div>;
 }
 
 /* ── ACS1 Channel Strip Layout ─────────────────────────────────── */
 
-const ACS1_STRIP_ORDER = [
-  'amp-model',
-  'gain',
-  'volume',
-  'eq',
-  'cabinet',
-  'boost',
-  'gate',
-  'room',
-  'post-amp-eq',
-  'filters',
-  'system',
+/** Paired rows: each entry is [leftGroup, rightGroup] rendered side by side */
+const ACS1_GRID_ROWS: [string, string | null][] = [
+  ['amp-model', 'cabinet'],
+  ['amp', 'eq'],
+  ['boost', 'gate'],
+  ['post-amp-eq', 'filters'],
+  ['room', 'system'],
 ];
 
-function ACS1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: string }) {
-  const { renderParam } = useParameterRenderer(deviceId);
+function ControlSection({
+  groupKey,
+  params,
+  renderParam,
+}: {
+  groupKey: string;
+  params: DeviceParameter[];
+  renderParam: (p: DeviceParameter) => React.ReactNode;
+}) {
+  return (
+    <div className="flex-1 min-w-0">
+      <h3
+        className="text-[10px] font-semibold uppercase tracking-widest mb-3 pb-1"
+        style={{
+          color: 'var(--text-muted)',
+          borderBottom: '1px solid var(--border-subtle)',
+        }}
+      >
+        {GROUP_LABELS[groupKey] ?? groupKey}
+      </h3>
+      <div className="flex flex-wrap gap-4 items-start">
+        {params.map(renderParam)}
+      </div>
+    </div>
+  );
+}
 
-  // Group parameters
+function ACS1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: string }) {
+  const { renderParam } = useParameterRenderer(deviceId, profile, { hideLink: true });
+
+  // Precompute right-pair IDs — the higher-order partner of each linked_pair.
+  // These are filtered from the display list so only the "left" (primary) param renders.
+  const rightIds = new Set<string>();
+  for (const p of profile.parameters) {
+    if (p.type === 'linked_pair' && p.linkedTo) {
+      const paired = profile.parameters.find((q) => q.id === p.linkedTo);
+      if (paired && (p.order ?? 0) < (paired.order ?? 0)) {
+        rightIds.add(paired.id);
+      }
+    }
+  }
+
+  // Group parameters (right-side linked params are excluded)
   const groups = new Map<string, DeviceParameter[]>();
   for (const param of profile.parameters) {
+    if (rightIds.has(param.id)) continue;
     const group = param.group ?? 'other';
     if (!groups.has(group)) groups.set(group, []);
     groups.get(group)!.push(param);
@@ -256,32 +299,44 @@ function ACS1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: s
     params.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }
 
-  // Ordered group list
-  const orderedGroups = ACS1_STRIP_ORDER.filter((g) => groups.has(g));
+  // Collect groups that appear in the grid
+  const gridGroupKeys = new Set(ACS1_GRID_ROWS.flat().filter(Boolean) as string[]);
+
+  // Any remaining groups not in the grid
+  const extraGroups: string[] = [];
   for (const key of groups.keys()) {
-    if (!orderedGroups.includes(key)) orderedGroups.push(key);
+    if (!gridGroupKeys.has(key)) extraGroups.push(key);
   }
 
   return (
     <div className="space-y-5">
-      {orderedGroups.map((groupKey) => {
-        const params = groups.get(groupKey);
-        if (!params || params.length === 0) return null;
+      {/* Paired grid rows */}
+      {ACS1_GRID_ROWS.map(([left, right], i) => {
+        const leftParams = groups.get(left);
+        const rightParams = right ? groups.get(right) : undefined;
+        if (!leftParams?.length && !rightParams?.length) return null;
         return (
-          <div key={groupKey}>
-            <h3
-              className="text-[10px] font-semibold uppercase tracking-widest mb-3 pb-1"
-              style={{
-                color: 'var(--text-muted)',
-                borderBottom: '1px solid var(--border-subtle)',
-              }}
-            >
-              {GROUP_LABELS[groupKey] ?? groupKey}
-            </h3>
-            <div className="flex flex-wrap gap-5 items-start">
-              {params.map(renderParam)}
-            </div>
+          <div
+            key={i}
+            className="grid gap-5"
+            style={{ gridTemplateColumns: rightParams?.length ? '1fr 1fr' : '1fr' }}
+          >
+            {leftParams?.length ? (
+              <ControlSection groupKey={left} params={leftParams} renderParam={renderParam} />
+            ) : <div />}
+            {rightParams?.length ? (
+              <ControlSection groupKey={right!} params={rightParams} renderParam={renderParam} />
+            ) : null}
           </div>
+        );
+      })}
+
+      {/* Any extra groups not in the grid */}
+      {extraGroups.map((groupKey) => {
+        const params = groups.get(groupKey);
+        if (!params?.length) return null;
+        return (
+          <ControlSection key={groupKey} groupKey={groupKey} params={params} renderParam={renderParam} />
         );
       })}
     </div>
@@ -291,7 +346,7 @@ function ACS1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: s
 /* ── Main Surface ──────────────────────────────────────────────── */
 
 export function DeviceControlSurface({ deviceId }: { deviceId: string }) {
-  const profile = useDeviceStore((s) => s.getProfile(deviceId));
+  const profile = useDeviceStore((s) => s.profiles.find((p) => p.id === deviceId));
 
   if (!profile) {
     return (
@@ -306,20 +361,6 @@ export function DeviceControlSurface({ deviceId }: { deviceId: string }) {
 
   return (
     <div className="h-full">
-      {/* Header */}
-      <div
-        className="flex items-center justify-between mb-4 pb-2"
-        style={{ borderBottom: '1px solid var(--border)' }}
-      >
-        <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-          {profile.name}
-        </h2>
-        <span className="text-[10px] font-mono" style={{ color: 'var(--text-muted)' }}>
-          Ch {profile.defaultChannel + 1}
-        </span>
-      </div>
-
-      {/* Device-specific layout */}
       {profile.id === 'walrus-r1' ? (
         <R1Layout profile={profile} deviceId={deviceId} />
       ) : profile.id === 'walrus-acs1-mkii' ? (

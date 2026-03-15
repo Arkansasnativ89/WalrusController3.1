@@ -205,8 +205,8 @@ export function Knob({ value, min, max, label, onChange, size = 64, color }: Kno
       </div>
 
       <span
-        className="text-xs text-center truncate"
-        style={{ color: 'var(--text-secondary)', maxWidth: size }}
+        className="text-xs text-center leading-tight"
+        style={{ color: 'var(--text-secondary)', width: size, display: 'block', wordBreak: 'break-word' }}
       >
         {label}
       </span>

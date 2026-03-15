@@ -142,8 +142,14 @@ function NavButton({
 /* ── Device Panel ──────────────────────────────────────────────── */
 
 function DevicePanel({ deviceId }: { deviceId: string }) {
-  const { sendProgramChange, profiles, focusDevice } = useDeviceStore();
+  const { sendProgramChange, profiles, focusDevice, isGroupLinked, setGroupLinked } = useDeviceStore();
   const profile = profiles.find((p) => p.id === deviceId);
+
+  // Stereo link state for devices with linked pairs (e.g. ACS1)
+  const firstLinkedGroup = profile?.stereoLinked
+    ? profile.parameters.find((p) => p.type === 'linked_pair' && p.group)?.group
+    : undefined;
+  const isStereoLinked = firstLinkedGroup ? isGroupLinked(deviceId, firstLinkedGroup) : false;
 
   if (!profile) return null;
 
@@ -157,44 +163,66 @@ function DevicePanel({ deviceId }: { deviceId: string }) {
         <h2 className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
           {profile.name.replace('Walrus Audio ', '')}
         </h2>
-        {profile.presetSlots && (
-          <div className="flex gap-1">
-            {profile.presetSlots.slice(0, 9).map((slot, i) => {
-              // Bank color: 0-2 = A (red), 3-5 = B (green), 6-8 = C (blue)
-              const bankColor =
-                i < 3
-                  ? 'var(--bank-a)'
-                  : i < 6
-                    ? 'var(--bank-b)'
-                    : 'var(--bank-c)';
-              return (
-                <button
-                  key={slot.pc}
-                  onClick={() => sendProgramChange(deviceId, slot.pc)}
-                  className="px-1.5 py-0.5 text-[9px] rounded transition-led font-mono"
-                  style={{
-                    background: 'var(--surface-raised)',
-                    border: '1px solid var(--border)',
-                    color: 'var(--text-secondary)',
-                  }}
-                  title={slot.name}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = bankColor;
-                    e.currentTarget.style.color = bankColor;
-                    e.currentTarget.style.boxShadow = `0 0 6px ${bankColor}40`;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--border)';
-                    e.currentTarget.style.color = 'var(--text-secondary)';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                >
-                  {i + 1}
-                </button>
-              );
-            })}
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {profile.stereoLinked && firstLinkedGroup && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setGroupLinked(deviceId, firstLinkedGroup, !isStereoLinked); }}
+              className="flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium transition-led"
+              style={{
+                background: isStereoLinked ? 'var(--accent-cyan-dim)' : 'var(--surface-raised)',
+                border: `1px solid ${isStereoLinked ? 'var(--accent-cyan)' : 'var(--border)'}`,
+                color: isStereoLinked ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                {isStereoLinked ? (
+                  <path d="M6 4H4a4 4 0 000 8h2m4-8h2a4 4 0 010 8h-2m-5-4h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                ) : (
+                  <path d="M6 4H4a4 4 0 000 8h2m4-8h2a4 4 0 010 8h-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                )}
+              </svg>
+              {isStereoLinked ? 'Stereo' : 'Mono'}
+            </button>
+          )}
+          {profile.presetSlots && (
+            <div className="flex gap-1">
+              {profile.presetSlots.slice(0, 9).map((slot, i) => {
+                // Bank color: 0-2 = A (red), 3-5 = B (green), 6-8 = C (blue)
+                const bankColor =
+                  i < 3
+                    ? 'var(--bank-a)'
+                    : i < 6
+                      ? 'var(--bank-b)'
+                      : 'var(--bank-c)';
+                return (
+                  <button
+                    key={slot.pc}
+                    onClick={() => sendProgramChange(deviceId, slot.pc)}
+                    className="px-1.5 py-0.5 text-[9px] rounded transition-led font-mono"
+                    style={{
+                      background: 'var(--surface-raised)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--text-secondary)',
+                    }}
+                    title={slot.name}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = bankColor;
+                      e.currentTarget.style.color = bankColor;
+                      e.currentTarget.style.boxShadow = `0 0 6px ${bankColor}40`;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                      e.currentTarget.style.color = 'var(--text-secondary)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  >
+                    {i + 1}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Controls */}

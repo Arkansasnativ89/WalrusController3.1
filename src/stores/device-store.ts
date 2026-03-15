@@ -221,16 +221,26 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
   },
 
   setGroupLinked: (deviceId, group, linked) => {
+    const profile = get().profiles.find((p) => p.id === deviceId);
     set((state) => {
       const existing = state.devices[deviceId];
       if (!existing) return state;
+
+      let updatedGroups: LinkedGroupState;
+      if (profile?.stereoLinked) {
+        // Global link: toggle ALL groups together
+        updatedGroups = {};
+        for (const key of Object.keys(existing.linkedGroups)) {
+          updatedGroups[key] = linked;
+        }
+      } else {
+        updatedGroups = { ...existing.linkedGroups, [group]: linked };
+      }
+
       return {
         devices: {
           ...state.devices,
-          [deviceId]: {
-            ...existing,
-            linkedGroups: { ...existing.linkedGroups, [group]: linked },
-          },
+          [deviceId]: { ...existing, linkedGroups: updatedGroups },
         },
       };
     });
