@@ -247,22 +247,64 @@ function R1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: str
 
 /* ── ACS1 Channel Strip Layout ─────────────────────────────────── */
 
-/** Top config strip: all four amp/cab/eq selector groups in one 4-col row */
-const ACS1_CONFIG_GROUPS = ['amp-model', 'cabinet', 'amp', 'eq'] as const;
+/* ── ACS1 MKII Custom Layout helpers ──────────────────────────── */
 
-/** Paired rows: each entry is [leftGroup, rightGroup] rendered side by side */
-const ACS1_GRID_ROWS: [string, string | null][] = [
-  ['boost', 'gate'],
-  ['post-amp-eq', 'filters'],
-];
+/** Rough HPF frequency display (0 = Off, 1–127 ≈ 20 Hz – 1 kHz) */
+function formatHPF(val: number): string {
+  if (val === 0) return 'Off';
+  const hz = Math.round(20 * Math.pow(50, val / 127));
+  return hz >= 1000 ? `${(hz / 1000).toFixed(1)}k` : `${hz}`;
+}
 
-/** Groups with fixed inner column counts */
-const ACS1_COLUMNS: Record<string, number> = {
-  room: 3,
-};
+/** Rough LPF frequency display (0 = Off, 1–127 ≈ 20 kHz – 200 Hz) */
+function formatLPF(val: number): string {
+  if (val === 0) return 'Off';
+  const hz = Math.round(20000 * Math.pow(0.01, val / 127));
+  return hz >= 1000 ? `${(hz / 1000).toFixed(1)}k` : `${hz}`;
+}
 
-/** Remaining groups rendered after the paired rows, in order */
-const ACS1_REMAINING_ORDER = ['room', 'system'];
+/** Label stack: name (small caps) + CC number + widget + orange value */
+function ACS1Cell({
+  label, cc, valueDisplay, children,
+}: {
+  label: string;
+  cc: number;
+  valueDisplay: string | number;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-0.5">
+      <span
+        className="text-[9px] font-semibold uppercase tracking-wider leading-none text-center"
+        style={{ color: 'var(--text-muted)' }}
+      >
+        {label}
+      </span>
+      <span className="text-[8px] font-mono leading-none" style={{ color: 'var(--border)' }}>
+        CC{cc}
+      </span>
+      {children}
+      <span className="text-[9px] font-mono leading-none text-center" style={{ color: 'var(--accent-peach)' }}>
+        {valueDisplay}
+      </span>
+    </div>
+  );
+}
+
+/** Titled sub-panel within the ACS1 global controls section */
+function ACS1SubPanel({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <h4
+        className="text-[9px] font-semibold uppercase tracking-widest pb-1"
+        style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}
+      >
+        {title}
+      </h4>
+      {children}
+    </div>
+  );
+}
 
 function ControlSection({
   groupKey,
@@ -302,98 +344,267 @@ function ControlSection({
   );
 }
 
-function ACS1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: string }) {
-  const { renderParam } = useParameterRenderer(deviceId, profile, { hideLink: true });
-
-  // Precompute right-pair IDs — the higher-order partner of each linked_pair.
-  // These are filtered from the display list so only the "left" (primary) param renders.
-  const rightIds = new Set<string>();
-  for (const p of profile.parameters) {
-    if (p.type === 'linked_pair' && p.linkedTo) {
-      const paired = profile.parameters.find((q) => q.id === p.linkedTo);
-      if (paired && (p.order ?? 0) < (paired.order ?? 0)) {
-        rightIds.add(paired.id);
-      }
-    }
-  }
-
-  // Group parameters (right-side linked params are excluded)
-  const groups = new Map<string, DeviceParameter[]>();
-  for (const param of profile.parameters) {
-    if (rightIds.has(param.id)) continue;
-    const group = param.group ?? 'other';
-    if (!groups.has(group)) groups.set(group, []);
-    groups.get(group)!.push(param);
-  }
-
-  // Sort within groups
-  for (const params of groups.values()) {
-    params.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  }
-
-  // Collect all handled keys so remaining groups can be identified
-  const handledKeys = new Set<string>([
-    ...ACS1_CONFIG_GROUPS,
-    ...ACS1_GRID_ROWS.flat().filter(Boolean) as string[],
-  ]);
-
-  // Remaining groups in declared order, then any unlisted extras
-  const remainingSeen = new Set<string>();
-  const remainingGroups: string[] = [];
-  for (const key of [...ACS1_REMAINING_ORDER, ...groups.keys()]) {
-    if (!remainingSeen.has(key) && !handledKeys.has(key) && groups.has(key)) {
-      remainingSeen.add(key);
-      remainingGroups.push(key);
-    }
-  }
+/** One stereo channel strip column (L or R) for the ACS1 channel section */
+function ACS1ChannelColumn({
+  side, isStereoMode,
+  ampParam, cabParam, gainParam, volParam, bassParam, midParam, trebleParam,
+  vals, onSet,
+}: {
+  side: 'L' | 'R';
+  isStereoMode: boolean;
+  ampParam: DeviceParameter;
+  cabParam: DeviceParameter;
+  gainParam: DeviceParameter;
+  volParam: DeviceParameter;
+  bassParam: DeviceParameter;
+  midParam: DeviceParameter;
+  trebleParam: DeviceParameter;
+  vals: Record<string, number>;
+  onSet: (id: string, v: number) => void;
+}) {
+  const gv = (p: DeviceParameter) => vals[p.id] ?? p.default;
+  const ampVal = gv(ampParam);
+  const cabVal = gv(cabParam);
+  const ampName = ampParam.options?.find((o) => o.value === ampVal)?.label ?? String(ampVal);
+  const cabName = cabParam.options?.find((o) => o.value === cabVal)?.label ?? String(cabVal);
 
   return (
-    <div className="space-y-5">
-      {/* Config strip: Amp Model | Cabinet | Amp | EQ in one 4-column row */}
-      <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-        {ACS1_CONFIG_GROUPS.map((key) => {
-          const params = groups.get(key);
-          return params?.length ? (
-            <ControlSection key={key} groupKey={key} params={params} renderParam={renderParam} />
-          ) : <div key={key} />;
-        })}
+    <div
+      className="flex flex-col gap-3 p-3 rounded min-w-0"
+      style={{ border: '1px solid var(--border-subtle)', background: 'var(--surface-raised)' }}
+    >
+      {/* Channel badge — only in stereo mode */}
+      {isStereoMode && (
+        <div
+          className="text-[9px] font-mono font-bold text-center py-0.5 rounded tracking-widest uppercase"
+          style={{
+            color: side === 'L' ? 'var(--accent-cyan)' : 'var(--accent-peach)',
+            background: side === 'L' ? 'var(--accent-cyan-dim)' : 'var(--accent-peach-dim)',
+            border: `1px solid ${side === 'L' ? 'var(--accent-cyan)' : 'var(--accent-peach)'}`,
+          }}
+        >
+          {side === 'L' ? 'Left' : 'Right'}
+        </div>
+      )}
+
+      {/* Amp Model */}
+      <div className="flex flex-col gap-0.5">
+        <span className="text-[9px] font-semibold uppercase tracking-wider leading-none" style={{ color: 'var(--text-muted)' }}>Amp Model</span>
+        <span className="text-[8px] font-mono leading-none mb-1" style={{ color: 'var(--border)' }}>CC{ampParam.cc}</span>
+        <Selector value={ampVal} options={ampParam.options!} label="" hideLabel dropdown fullWidth onChange={(v) => onSet(ampParam.id, v)} />
+        <span className="text-[9px] font-mono truncate mt-0.5" style={{ color: 'var(--accent-peach)' }} title={ampName}>{ampName}</span>
       </div>
 
-      {/* Paired rows: Boost|Gate then Post-Amp EQ|Filters */}
-      {ACS1_GRID_ROWS.map(([left, right], i) => {
-        const leftParams = groups.get(left);
-        const rightParams = right ? groups.get(right) : undefined;
-        if (!leftParams?.length && !rightParams?.length) return null;
-        return (
-          <div
-            key={i}
-            className="grid gap-5"
-            style={{ gridTemplateColumns: rightParams?.length ? '1fr 1fr' : '1fr' }}
-          >
-            {leftParams?.length ? (
-              <ControlSection groupKey={left} params={leftParams} renderParam={renderParam} />
-            ) : <div />}
-            {rightParams?.length ? (
-              <ControlSection groupKey={right!} params={rightParams} renderParam={renderParam} />
-            ) : null}
-          </div>
-        );
-      })}
+      {/* Cabinet IR */}
+      <div className="flex flex-col gap-0.5">
+        <span className="text-[9px] font-semibold uppercase tracking-wider leading-none" style={{ color: 'var(--text-muted)' }}>Cabinet IR</span>
+        <span className="text-[8px] font-mono leading-none mb-1" style={{ color: 'var(--border)' }}>CC{cabParam.cc}</span>
+        <Selector value={cabVal} options={cabParam.options!} label="" hideLabel fullWidth onChange={(v) => onSet(cabParam.id, v)} />
+        <span className="text-[9px] font-mono truncate mt-0.5" style={{ color: 'var(--accent-peach)' }} title={cabName}>{cabName}</span>
+      </div>
 
-      {/* Room (3-col knob grid), System toggles, any extras */}
-      {remainingGroups.map((groupKey) => {
-        const params = groups.get(groupKey);
-        if (!params?.length) return null;
-        return (
-          <ControlSection
-            key={groupKey}
-            groupKey={groupKey}
-            params={params}
-            renderParam={renderParam}
-            columns={ACS1_COLUMNS[groupKey]}
+      {/* Gain + Volume */}
+      <div className="grid grid-cols-2 gap-2 justify-items-center">
+        <ACS1Cell label="Gain" cc={gainParam.cc} valueDisplay={gv(gainParam)}>
+          <Knob value={gv(gainParam)} min={gainParam.min} max={gainParam.max} label="" hideLabel onChange={(v) => onSet(gainParam.id, v)} size={52} />
+        </ACS1Cell>
+        <ACS1Cell label="Volume" cc={volParam.cc} valueDisplay={gv(volParam)}>
+          <Knob value={gv(volParam)} min={volParam.min} max={volParam.max} label="" hideLabel onChange={(v) => onSet(volParam.id, v)} size={52} />
+        </ACS1Cell>
+      </div>
+
+      {/* Bass / Mid / Treble */}
+      <div className="grid grid-cols-3 gap-2 justify-items-center">
+        <ACS1Cell label="Bass" cc={bassParam.cc} valueDisplay={gv(bassParam)}>
+          <Knob value={gv(bassParam)} min={bassParam.min} max={bassParam.max} label="" hideLabel onChange={(v) => onSet(bassParam.id, v)} size={44} />
+        </ACS1Cell>
+        <ACS1Cell label="Mid" cc={midParam.cc} valueDisplay={gv(midParam)}>
+          <Knob value={gv(midParam)} min={midParam.min} max={midParam.max} label="" hideLabel onChange={(v) => onSet(midParam.id, v)} size={44} />
+        </ACS1Cell>
+        <ACS1Cell label="Treble" cc={trebleParam.cc} valueDisplay={gv(trebleParam)}>
+          <Knob value={gv(trebleParam)} min={trebleParam.min} max={trebleParam.max} label="" hideLabel onChange={(v) => onSet(trebleParam.id, v)} size={44} />
+        </ACS1Cell>
+      </div>
+    </div>
+  );
+}
+
+function ACS1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: string }) {
+  const vals = useDeviceStore((s) => s.devices[deviceId]?.parameterValues ?? {});
+  const isGroupLinked = useDeviceStore((s) => s.isGroupLinked);
+  const setGroupLinked = useDeviceStore((s) => s.setGroupLinked);
+  const setParamValue = useDeviceStore((s) => s.setParameterValue);
+
+  const p = (id: string): DeviceParameter => profile.parameters.find((x) => x.id === id)!;
+  const v = (id: string) => vals[id] ?? p(id).default;
+  const set = (id: string, val: number) => setParamValue(deviceId, id, val);
+
+  // Mono = linked (single column, L mirrors R); Stereo = unlinked (two independent columns)
+  const firstLinkedGroup = profile.parameters.find((x) => x.type === 'linked_pair' && x.group)?.group ?? 'eq';
+  const isLinked = isGroupLinked(deviceId, firstLinkedGroup);
+  const isStereoMode = !isLinked;
+
+  return (
+    <div className="space-y-4">
+      {/* Mono / Stereo toggle */}
+      <div className="flex justify-center">
+        <button
+          onClick={() => setGroupLinked(deviceId, firstLinkedGroup, !isLinked)}
+          className="flex items-center gap-2 px-4 py-1.5 rounded text-xs font-semibold tracking-wider uppercase transition-led"
+          style={{
+            background: isStereoMode ? 'var(--accent-cyan-dim)' : 'var(--surface-raised)',
+            border: `1px solid ${isStereoMode ? 'var(--accent-cyan)' : 'var(--border)'}`,
+            color: isStereoMode ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            {isStereoMode ? (
+              <path d="M6 4H4a4 4 0 000 8h2m4-8h2a4 4 0 010 8h-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            ) : (
+              <path d="M6 4H4a4 4 0 000 8h2m4-8h2a4 4 0 010 8h-2m-5-4h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            )}
+          </svg>
+          {isStereoMode ? 'Stereo' : 'Mono'}
+        </button>
+      </div>
+
+      {/* Channel strip */}
+      <div
+        className="grid gap-3"
+        style={{ gridTemplateColumns: isStereoMode ? '1fr 1fr' : '1fr' }}
+      >
+        <ACS1ChannelColumn
+          side="L" isStereoMode={isStereoMode}
+          ampParam={p('acs1-amp-left')} cabParam={p('acs1-cab-left')}
+          gainParam={p('acs1-gain-left')} volParam={p('acs1-vol-left')}
+          bassParam={p('acs1-bass-left')} midParam={p('acs1-mid-left')} trebleParam={p('acs1-treble-left')}
+          vals={vals} onSet={set}
+        />
+        {isStereoMode && (
+          <ACS1ChannelColumn
+            side="R" isStereoMode={isStereoMode}
+            ampParam={p('acs1-amp-right')} cabParam={p('acs1-cab-right')}
+            gainParam={p('acs1-gain-right')} volParam={p('acs1-vol-right')}
+            bassParam={p('acs1-bass-right')} midParam={p('acs1-mid-right')} trebleParam={p('acs1-treble-right')}
+            vals={vals} onSet={set}
           />
-        );
-      })}
+        )}
+      </div>
+
+      {/* Divider between channel strip and global controls */}
+      <hr style={{ borderColor: 'var(--border)' }} />
+
+      {/* ── Global Controls ─────────────────────────────────────── */}
+      <div className="space-y-4">
+
+        {/* Signal Path */}
+        <ACS1SubPanel title="Signal Path">
+          <div className="grid grid-cols-3 gap-3">
+            {([
+              { id: 'acs1-bypass', label: 'Bypass', onLabel: 'Engaged', offLabel: 'Bypassed', onColor: 'var(--accent-cyan)', onBg: 'var(--accent-cyan-dim)' },
+              { id: 'acs1-amp-bypass', label: 'Amp Bypass', onLabel: 'Bypassed', offLabel: 'Active', onColor: 'var(--accent-coral)', onBg: 'var(--accent-coral-dim)' },
+              { id: 'acs1-ir-bypass', label: 'IR Bypass', onLabel: 'Bypassed', offLabel: 'Active', onColor: 'var(--accent-coral)', onBg: 'var(--accent-coral-dim)' },
+            ] as const).map(({ id, label, onLabel, offLabel, onColor, onBg }) => {
+              const isOn = v(id) >= 64;
+              return (
+                <ACS1Cell key={id} label={label} cc={p(id).cc} valueDisplay={isOn ? onLabel : offLabel}>
+                  <button
+                    onClick={() => set(id, isOn ? 0 : 127)}
+                    className="w-full px-3 py-1.5 rounded text-xs font-semibold transition-led"
+                    style={{
+                      background: isOn ? onBg : 'var(--surface-raised)',
+                      border: `1px solid ${isOn ? onColor : 'var(--border)'}`,
+                      color: isOn ? onColor : 'var(--text-secondary)',
+                    }}
+                  >
+                    {isOn ? onLabel : offLabel}
+                  </button>
+                </ACS1Cell>
+              );
+            })}
+          </div>
+        </ACS1SubPanel>
+
+        {/* Boost */}
+        <ACS1SubPanel title="Boost">
+          <div className="flex items-start gap-4">
+            {(() => {
+              const on = v('acs1-boost-engage') >= 64;
+              return (
+                <ACS1Cell label="Boost" cc={p('acs1-boost-engage').cc} valueDisplay={on ? 'On' : 'Off'}>
+                  <button
+                    onClick={() => set('acs1-boost-engage', on ? 0 : 127)}
+                    className="px-4 py-1.5 rounded text-xs font-semibold transition-led"
+                    style={{
+                      background: on ? 'var(--accent-yellow-dim)' : 'var(--surface-raised)',
+                      border: `1px solid ${on ? 'var(--accent-yellow)' : 'var(--border)'}`,
+                      color: on ? 'var(--accent-yellow)' : 'var(--text-secondary)',
+                    }}
+                  >
+                    {on ? 'On' : 'Off'}
+                  </button>
+                </ACS1Cell>
+              );
+            })()}
+            <ACS1Cell label="Boost Gain" cc={p('acs1-boost-gain').cc} valueDisplay={v('acs1-boost-gain')}>
+              <Knob value={v('acs1-boost-gain')} min={p('acs1-boost-gain').min} max={p('acs1-boost-gain').max} label="" hideLabel onChange={(n) => set('acs1-boost-gain', n)} size={52} />
+            </ACS1Cell>
+            <ACS1Cell label="Boost Vol" cc={p('acs1-boost-volume').cc} valueDisplay={v('acs1-boost-volume')}>
+              <Knob value={v('acs1-boost-volume')} min={p('acs1-boost-volume').min} max={p('acs1-boost-volume').max} label="" hideLabel onChange={(n) => set('acs1-boost-volume', n)} size={52} />
+            </ACS1Cell>
+          </div>
+        </ACS1SubPanel>
+
+        {/* Tonestack & Gate */}
+        <ACS1SubPanel title="Tonestack & Gate">
+          <div className="grid grid-cols-3 gap-3 justify-items-center">
+            <ACS1Cell label="Presence" cc={p('acs1-presence').cc} valueDisplay={v('acs1-presence')}>
+              <Knob value={v('acs1-presence')} min={p('acs1-presence').min} max={p('acs1-presence').max} label="" hideLabel onChange={(n) => set('acs1-presence', n)} size={52} />
+            </ACS1Cell>
+            <ACS1Cell label="Resonance" cc={p('acs1-resonance').cc} valueDisplay={v('acs1-resonance')}>
+              <Knob value={v('acs1-resonance')} min={p('acs1-resonance').min} max={p('acs1-resonance').max} label="" hideLabel onChange={(n) => set('acs1-resonance', n)} size={52} />
+            </ACS1Cell>
+            <ACS1Cell label="HPF" cc={p('acs1-hpf').cc} valueDisplay={formatHPF(v('acs1-hpf'))}>
+              <Knob value={v('acs1-hpf')} min={p('acs1-hpf').min} max={p('acs1-hpf').max} label="" hideLabel onChange={(n) => set('acs1-hpf', n)} size={52} />
+            </ACS1Cell>
+            <ACS1Cell label="LPF" cc={p('acs1-lpf').cc} valueDisplay={formatLPF(v('acs1-lpf'))}>
+              <Knob value={v('acs1-lpf')} min={p('acs1-lpf').min} max={p('acs1-lpf').max} label="" hideLabel onChange={(n) => set('acs1-lpf', n)} size={52} />
+            </ACS1Cell>
+            <ACS1Cell label="Gate Thres" cc={p('acs1-gate-threshold').cc} valueDisplay={v('acs1-gate-threshold') === 0 ? 'Off' : v('acs1-gate-threshold')}>
+              <Knob value={v('acs1-gate-threshold')} min={p('acs1-gate-threshold').min} max={p('acs1-gate-threshold').max} label="" hideLabel onChange={(n) => set('acs1-gate-threshold', n)} size={52} />
+            </ACS1Cell>
+            <ACS1Cell label="Gate Rel" cc={p('acs1-gate-release').cc} valueDisplay={v('acs1-gate-release')}>
+              <Knob value={v('acs1-gate-release')} min={p('acs1-gate-release').min} max={p('acs1-gate-release').max} label="" hideLabel onChange={(n) => set('acs1-gate-release', n)} size={52} />
+            </ACS1Cell>
+          </div>
+        </ACS1SubPanel>
+
+        {/* Room / Reverb */}
+        <ACS1SubPanel title="Room / Reverb">
+          <div className="flex items-start gap-4">
+            {(() => {
+              const rtParam = p('acs1-room-type');
+              const rtVal = v('acs1-room-type');
+              const rtLabel = rtParam.options?.find((o) => o.value === rtVal)?.label ?? String(rtVal);
+              return (
+                <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+                  <span className="text-[9px] font-semibold uppercase tracking-wider leading-none" style={{ color: 'var(--text-muted)' }}>Room Type</span>
+                  <span className="text-[8px] font-mono leading-none mb-1" style={{ color: 'var(--border)' }}>CC{rtParam.cc}</span>
+                  <Selector value={rtVal} options={rtParam.options!} label="" hideLabel onChange={(n) => set('acs1-room-type', n)} />
+                  <span className="text-[9px] font-mono mt-0.5" style={{ color: 'var(--accent-peach)' }}>{rtLabel}</span>
+                </div>
+              );
+            })()}
+            <ACS1Cell label="Room Lvl" cc={p('acs1-room-level').cc} valueDisplay={v('acs1-room-level')}>
+              <Knob value={v('acs1-room-level')} min={p('acs1-room-level').min} max={p('acs1-room-level').max} label="" hideLabel onChange={(n) => set('acs1-room-level', n)} size={52} />
+            </ACS1Cell>
+            <ACS1Cell label="Room Decay" cc={p('acs1-room-decay').cc} valueDisplay={v('acs1-room-decay')}>
+              <Knob value={v('acs1-room-decay')} min={p('acs1-room-decay').min} max={p('acs1-room-decay').max} label="" hideLabel onChange={(n) => set('acs1-room-decay', n)} size={52} />
+            </ACS1Cell>
+          </div>
+        </ACS1SubPanel>
+
+      </div>
     </div>
   );
 }
