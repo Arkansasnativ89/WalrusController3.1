@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useMidi } from '@/hooks/useMidi';
 import { useDeviceStore } from '@/stores/device-store';
+import { usePresetStore } from '@/stores/preset-store';
 import { useUIStore } from '@/stores/ui-store';
 import { useMidiStore } from '@/stores/midi-store';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
@@ -237,14 +238,16 @@ function DevicePanel({ deviceId }: { deviceId: string }) {
 
 export default function App() {
   const { error } = useMidi();
-  const { loadProfiles } = useDeviceStore();
+  const { loadProfiles, focusedDeviceId } = useDeviceStore();
+  const { loadPresets } = usePresetStore();
   const { midiMonitorOpen } = useUIStore();
 
   useKeyboardShortcuts();
 
   useEffect(() => {
     loadProfiles(deviceProfiles);
-  }, [loadProfiles]);
+    loadPresets();
+  }, [loadProfiles, loadPresets]);
 
   return (
     <div
@@ -278,12 +281,32 @@ export default function App() {
       >
         <ResizablePanels
           left={
-            <div className="h-full panel" style={{ borderRadius: 0, borderLeft: 'none', borderTop: 'none', borderBottom: 'none' }}>
+            <div
+              className={`h-full panel${focusedDeviceId === 'walrus-r1' ? ' module-selected-r1' : ''}`}
+              style={{
+                borderRadius: 0,
+                borderLeft: 'none',
+                borderTop: 'none',
+                borderBottom: 'none',
+                borderRight: `1px solid ${focusedDeviceId === 'walrus-r1' ? 'var(--accent-cyan)' : 'var(--border)'}`,
+                transition: 'border-color 250ms ease',
+              }}
+            >
               <DevicePanel deviceId="walrus-r1" />
             </div>
           }
           right={
-            <div className="h-full panel" style={{ borderRadius: 0, borderRight: 'none', borderTop: 'none', borderBottom: 'none' }}>
+            <div
+              className={`h-full panel${focusedDeviceId === 'walrus-acs1-mkii' ? ' module-selected-acs1' : ''}`}
+              style={{
+                borderRadius: 0,
+                borderRight: 'none',
+                borderTop: 'none',
+                borderBottom: 'none',
+                borderLeft: `1px solid ${focusedDeviceId === 'walrus-acs1-mkii' ? 'var(--accent-acs1)' : 'var(--border)'}`,
+                transition: 'border-color 250ms ease',
+              }}
+            >
               <DevicePanel deviceId="walrus-acs1-mkii" />
             </div>
           }

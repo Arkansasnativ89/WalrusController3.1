@@ -111,3 +111,19 @@ body {
 .transition-led {
   transition: background-color 100ms ease, box-shadow 100ms ease;
 }
+
+/* ── Selected Module Wireframe Glow ────────────────────────────── */
+@keyframes module-glow-r1 {
+  0%, 100% { box-shadow: inset 0 0 10px #1ED6D003, inset 0 0 4px #1ED6D002; }
+  50%       { box-shadow: inset 0 0 18px #1ED6D007, inset 0 0 8px #1ED6D004; }
+}
+@keyframes module-glow-acs1 {
+  0%, 100% { box-shadow: inset 0 0 10px #d4902003, inset 0 0 4px #d4902002; }
+  50%       { box-shadow: inset 0 0 18px #d4902007, inset 0 0 8px #d4902004; }
+}
+.module-selected-r1 {
+  animation: module-glow-r1 2.5s ease-in-out infinite;
+}
+.module-selected-acs1 {
+  animation: module-glow-acs1 2.5s ease-in-out infinite;
+}

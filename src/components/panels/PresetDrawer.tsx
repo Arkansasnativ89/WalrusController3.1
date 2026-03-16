@@ -2,11 +2,11 @@ import { useState, useCallback } from 'react';
 import { useUIStore } from '@/stores/ui-store';
 import { useDeviceStore } from '@/stores/device-store';
 import { usePresetStore } from '@/stores/preset-store';
-import type { Preset, ParameterValue } from '@/types/preset';
+import type { Preset, ParameterValue, PresetExport } from '@/types/preset';
 
 export function PresetDrawer() {
   const { presetDrawerOpen, setPresetDrawerOpen } = useUIStore();
-  const { focusedDeviceId, profiles, devices, setAllParameters, sendAllParameters } =
+  const { focusedDeviceId, profiles, devices, setAllParameters, sendAllParameters, recallPreset } =
     useDeviceStore();
   const { presets, savePreset, deletePreset } = usePresetStore();
 
@@ -14,17 +14,19 @@ export function PresetDrawer() {
   const parameterValues = focusedDeviceId ? devices[focusedDeviceId]?.parameterValues ?? {} : {};
 
   const [saveName, setSaveName] = useState('');
+  const [savePcSlot, setSavePcSlot] = useState<number | ''>('');
   const [showSaveForm, setShowSaveForm] = useState(false);
   const [abSlot, setAbSlot] = useState<'a' | 'b'>('a');
   const [snapshotA, setSnapshotA] = useState<Record<string, number> | null>(null);
   const [snapshotB, setSnapshotB] = useState<Record<string, number> | null>(null);
+  const [sendingPresetId, setSendingPresetId] = useState<string | null>(null);
 
   const devicePresets = presets.filter(
     (p) => p.deviceId === activeProfile?.id
   );
 
   const handleSave = useCallback(() => {
-    if (!activeProfile || !saveName.trim()) return;
+    if (!activeProfile || !saveName.trim() || savePcSlot === '') return;
     const now = new Date().toISOString();
     const parameters: ParameterValue[] = activeProfile.parameters.map((p) => ({
       parameterId: p.id,
@@ -36,29 +38,32 @@ export function PresetDrawer() {
       name: saveName.trim(),
       deviceId: activeProfile.id,
       tags: [],
+      pcSlot: savePcSlot as number,
       parameters,
       createdAt: now,
       modifiedAt: now,
     };
     savePreset(preset);
     setSaveName('');
+    setSavePcSlot('');
     setShowSaveForm(false);
-  }, [activeProfile, saveName, parameterValues, savePreset]);
+  }, [activeProfile, saveName, savePcSlot, parameterValues, savePreset]);
 
-  const handleLoad = useCallback(
-    (presetId: string) => {
-      if (!focusedDeviceId) return;
+  const handleRecall = useCallback(
+    async (presetId: string) => {
+      if (!focusedDeviceId || sendingPresetId) return;
       const preset = presets.find((p) => p.id === presetId);
-      if (preset) {
-        const values: Record<string, number> = {};
-        for (const pv of preset.parameters) {
-          values[pv.parameterId] = pv.value;
-        }
-        setAllParameters(focusedDeviceId, values);
-        sendAllParameters(focusedDeviceId);
+      if (!preset) return;
+      setSendingPresetId(preset.id);
+      try {
+        await recallPreset(focusedDeviceId, preset);
+      } catch {
+        // MIDI output may not be connected — state still updated
+      } finally {
+        setSendingPresetId(null);
       }
     },
-    [presets, focusedDeviceId, setAllParameters, sendAllParameters]
+    [presets, focusedDeviceId, recallPreset, sendingPresetId]
   );
 
   const handleAbCapture = useCallback(() => {
@@ -84,7 +89,13 @@ export function PresetDrawer() {
   );
 
   const handleExport = useCallback(() => {
-    const data = JSON.stringify(devicePresets, null, 2);
+    const exportData: PresetExport = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      deviceId: activeProfile?.id ?? '',
+      presets: devicePresets,
+    };
+    const data = JSON.stringify(exportData, null, 2);
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -104,15 +115,26 @@ export function PresetDrawer() {
       try {
         const text = await file.text();
         const imported = JSON.parse(text);
-        if (Array.isArray(imported)) {
-          for (const preset of imported) {
-            if (preset.name && preset.deviceId && preset.values) {
-              savePreset(preset);
-            }
+        // Support both the wrapped PresetExport envelope and a bare array
+        const presetsArray: unknown[] = Array.isArray(imported)
+          ? imported
+          : Array.isArray(imported?.presets)
+            ? imported.presets
+            : [];
+        for (const preset of presetsArray) {
+          if (
+            preset &&
+            typeof preset === 'object' &&
+            'name' in preset &&
+            'deviceId' in preset &&
+            'parameters' in preset &&
+            'pcSlot' in preset
+          ) {
+            savePreset(preset as Preset);
           }
         }
       } catch {
-        // Invalid JSON - ignore
+        // Invalid JSON — ignore silently
       }
     };
     input.click();
@@ -220,39 +242,62 @@ export function PresetDrawer() {
           {/* Save New */}
           <section>
             {showSaveForm ? (
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={saveName}
-                  onChange={(e) => setSaveName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSave()}
-                  placeholder="Preset name…"
-                  autoFocus
-                  className="flex-1 px-2 py-1.5 rounded text-xs outline-none"
-                  style={{
-                    background: 'var(--surface-raised)',
-                    border: '1px solid var(--border)',
-                    color: 'var(--text-primary)',
-                  }}
-                />
-                <button
-                  onClick={handleSave}
-                  className="px-3 py-1.5 rounded text-xs font-medium"
-                  style={{
-                    background: 'var(--accent-cyan-dim)',
-                    color: 'var(--accent-cyan)',
-                    border: '1px solid var(--accent-cyan)',
-                  }}
-                >
-                  Save
-                </button>
-                <button
-                  onClick={() => setShowSaveForm(false)}
-                  className="px-2 py-1.5 rounded text-xs"
-                  style={{ color: 'var(--text-muted)' }}
-                >
-                  ✕
-                </button>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={saveName}
+                    onChange={(e) => setSaveName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+                    placeholder="Preset name…"
+                    autoFocus
+                    className="flex-1 px-2 py-1.5 rounded text-xs outline-none"
+                    style={{
+                      background: 'var(--surface-raised)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--text-primary)',
+                    }}
+                  />
+                  <button
+                    onClick={() => { setSaveName(''); setSavePcSlot(''); setShowSaveForm(false); }}
+                    className="px-2 py-1.5 rounded text-xs"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="flex gap-2 items-center">
+                  <select
+                    value={savePcSlot}
+                    onChange={(e) => setSavePcSlot(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="flex-1 px-2 py-1.5 rounded text-xs outline-none"
+                    style={{
+                      background: 'var(--surface-raised)',
+                      border: `1px solid ${savePcSlot === '' ? 'var(--border)' : 'var(--accent-cyan)'}`,
+                      color: savePcSlot === '' ? 'var(--text-muted)' : 'var(--text-primary)',
+                    }}
+                  >
+                    <option value="">— Select PC slot —</option>
+                    {(activeProfile?.presetSlots ?? []).map((slot) => (
+                      <option key={slot.pc} value={slot.pc}>
+                        PC {slot.pc} — {slot.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={handleSave}
+                    disabled={!saveName.trim() || savePcSlot === ''}
+                    className="px-3 py-1.5 rounded text-xs font-medium"
+                    style={{
+                      background: saveName.trim() && savePcSlot !== '' ? 'var(--accent-cyan-dim)' : 'var(--surface-raised)',
+                      color: saveName.trim() && savePcSlot !== '' ? 'var(--accent-cyan)' : 'var(--text-muted)',
+                      border: `1px solid ${saveName.trim() && savePcSlot !== '' ? 'var(--accent-cyan)' : 'var(--border)'}`,
+                      cursor: saveName.trim() && savePcSlot !== '' ? 'pointer' : 'not-allowed',
+                    }}
+                  >
+                    Save
+                  </button>
+                </div>
               </div>
             ) : (
               <button
@@ -291,36 +336,66 @@ export function PresetDrawer() {
               </p>
             ) : (
               <div className="space-y-1">
-                {devicePresets.map((preset) => (
-                  <div
-                    key={preset.id}
-                    className="flex items-center justify-between px-3 py-2 rounded transition-led group"
-                    style={{ background: 'var(--surface-raised)' }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = 'var(--surface-hover)')
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = 'var(--surface-raised)')
-                    }
-                  >
-                    <button
-                      onClick={() => handleLoad(preset.id)}
-                      className="flex-1 text-left text-xs font-medium"
-                      style={{ color: 'var(--text-primary)' }}
+                {devicePresets.map((preset) => {
+                  const isSending = sendingPresetId === preset.id;
+                  return (
+                    <div
+                      key={preset.id}
+                      className="flex items-center justify-between px-3 py-2 rounded transition-led group"
+                      style={{
+                        background: isSending ? 'var(--accent-navy)' : 'var(--surface-raised)',
+                        opacity: sendingPresetId && !isSending ? 0.5 : 1,
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSending) e.currentTarget.style.background = 'var(--surface-hover)';
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSending) e.currentTarget.style.background = 'var(--surface-raised)';
+                      }}
                     >
-                      {preset.name}
-                    </button>
-                    <button
-                      onClick={() => deletePreset(preset.id)}
-                      className="opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity"
-                      style={{ color: 'var(--accent-coral)' }}
-                    >
-                      <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-                        <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                      </svg>
-                    </button>
-                  </div>
-                ))}
+                      <button
+                        onClick={() => handleRecall(preset.id)}
+                        disabled={!!sendingPresetId}
+                        className="flex-1 flex items-center gap-2 text-left text-xs font-medium"
+                        style={{
+                          color: isSending ? 'var(--accent-cyan)' : 'var(--text-primary)',
+                          cursor: sendingPresetId ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {isSending ? (
+                          <span className="flex items-center gap-1.5">
+                            <svg className="animate-spin" width="10" height="10" viewBox="0 0 16 16" fill="none">
+                              <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeDasharray="28" strokeDashoffset="10" />
+                            </svg>
+                            Sending…
+                          </span>
+                        ) : (
+                          preset.name
+                        )}
+                        <span
+                          className="text-[9px] font-mono px-1 py-0.5 rounded flex-shrink-0"
+                          style={{
+                            background: 'var(--surface)',
+                            border: '1px solid var(--border)',
+                            color: 'var(--text-muted)',
+                          }}
+                        >
+                          PC {preset.pcSlot}
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => deletePreset(preset.id)}
+                        disabled={!!sendingPresetId}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity"
+                        style={{ color: 'var(--accent-coral)' }}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                          <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                        </svg>
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </section>

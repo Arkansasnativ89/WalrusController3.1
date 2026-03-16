@@ -8,8 +8,7 @@ function hpfToHz(val: number): number {
 }
 
 function lpfToHz(val: number): number {
-  if (val === 0) return 20000;
-  return Math.round(20000 * Math.pow(0.05, val / 127));
+  return Math.round(1000 * Math.pow(20, val / 127));
 }
 
 function formatFreq(hz: number): string {
@@ -122,7 +121,7 @@ export function FilterEQDisplay({
       }
 
       // LPF — 2nd order Butterworth response
-      if (lpfValue > 0) {
+      if (lpfValue < 127) {
         const r = lpf_fc / f;
         const g = (r * r) / Math.sqrt(1 + r * r * r * r);
         db += 20 * Math.log10(Math.max(g, 1e-6));
@@ -174,7 +173,7 @@ export function FilterEQDisplay({
       const x = freqToX(hpf_fc, W);
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, CURVE_H); ctx.stroke();
     }
-    if (lpfValue > 0) {
+    if (lpfValue < 127) {
       const x = freqToX(lpf_fc, W);
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, CURVE_H); ctx.stroke();
     }
@@ -201,11 +200,11 @@ export function FilterEQDisplay({
     if (!track) return;
     const rect = track.getBoundingClientRect();
     const x = Math.max(0, Math.min((clientX - rect.left) / rect.width, 1));
-    onLpfChange(Math.round((1 - x) * 127)); // inverted: drag left = higher value
+    onLpfChange(Math.round(x * 127));
   };
 
   const hpfPct = hpfValue / 127;
-  const lpfPct = 1 - lpfValue / 127; // thumb position (inverted)
+  const lpfPct = lpfValue / 127;
 
   return (
     <div className="flex flex-col gap-1.5 w-full select-none">
@@ -221,7 +220,7 @@ export function FilterEQDisplay({
         <span style={{ color: 'var(--accent-acs1)' }}>
           {hpfValue === 0 ? 'Off' : formatFreq(hpfHz)}
           <span style={{ color: 'var(--border)', margin: '0 8px' }}>|</span>
-          {lpfValue === 0 ? 'Off' : formatFreq(lpfHz)}
+          {formatFreq(lpfHz)}
         </span>
         <span style={{ color: 'var(--text-muted)' }}>
           <span style={{ color: 'var(--border)' }}>CC 37</span>{' '}LPF
@@ -304,8 +303,8 @@ export function FilterEQDisplay({
             onPointerCancel={() => { draggingLpf.current = false; }}
           >
             <div
-              className="absolute top-0 right-0 h-full rounded"
-              style={{ width: `${(1 - lpfPct) * 100}%`, background: 'rgba(212,144,32,0.2)' }}
+              className="absolute top-0 left-0 h-full rounded"
+              style={{ width: `${lpfPct * 100}%`, background: 'rgba(212,144,32,0.2)' }}
             />
             <div
               className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full"

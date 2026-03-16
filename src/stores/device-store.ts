@@ -1,7 +1,10 @@
 import { create } from 'zustand';
 import type { DeviceProfile } from '@/types/device-profile';
+import type { Preset } from '@/types/preset';
 import { midiService } from '@/services/midi-service';
 import { buildCC, buildPC } from '@/utils/midi-utils';
+
+const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 interface ParameterState {
   [parameterId: string]: number;
@@ -36,6 +39,7 @@ interface DeviceState {
   setAllParameters: (deviceId: string, values: ParameterState) => void;
   sendAllParameters: (deviceId: string) => void;
   sendProgramChange: (deviceId: string, program: number) => void;
+  recallPreset: (deviceId: string, preset: Preset) => Promise<void>;
   toggleBypass: (deviceId: string) => void;
   setChannelOverride: (deviceId: string, channel: number | null) => void;
   getEffectiveChannel: (deviceId: string) => number;
@@ -180,6 +184,50 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
       midiService.notifyOutgoing(data);
     } catch {
       // Output not selected
+    }
+  },
+
+  recallPreset: async (deviceId, preset) => {
+    const profile = get().profiles.find((p) => p.id === deviceId);
+    const deviceState = get().devices[deviceId];
+    if (!profile || !deviceState) return;
+
+    const channel = get().getEffectiveChannel(deviceId);
+
+    // 1. Send Program Change to switch the pedal's internal slot
+    const pcData = buildPC(channel, preset.pcSlot);
+    try {
+      midiService.send(pcData);
+      midiService.notifyOutgoing(pcData);
+    } catch {
+      // Output not selected
+    }
+
+    // 2. Wait for the pedal to load its internal preset before overwriting CCs
+    await delay(100);
+
+    // 3. Update UI state immediately (no MIDI) so knobs reflect the preset values
+    const values: Record<string, number> = {};
+    for (const pv of preset.parameters) {
+      values[pv.parameterId] = pv.value;
+    }
+    get().setAllParameters(deviceId, values);
+
+    // 4. Stream CC messages with a small inter-message gap to avoid buffer flooding
+    const orderedIds = profile.ccSendOrder ?? profile.parameters.map((p) => p.id);
+    for (const paramId of orderedIds) {
+      const param = profile.parameters.find((p) => p.id === paramId);
+      const value = values[paramId];
+      if (param && value !== undefined) {
+        const data = buildCC(channel, param.cc, value);
+        try {
+          midiService.send(data);
+          midiService.notifyOutgoing(data);
+        } catch {
+          // continue sending remaining params
+        }
+        await delay(10);
+      }
     }
   },
 

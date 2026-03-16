@@ -20,6 +20,8 @@ export interface Preset {
   deviceId: string;
   /** MIDI channel override (if different from device default) */
   channelOverride?: number;
+  /** Program Change slot number to send before restoring CC values (0–127) */
+  pcSlot: number;
   /** Snapshot of all parameter values */
   parameters: ParameterValue[];
   /** ISO timestamp of creation */
