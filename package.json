@@ -17,7 +17,10 @@
     "dexie": "^4.3.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "zustand": "^5.0.11"
+    "zustand": "^5.0.12"
+  },
+  "overrides": {
+    "serialize-javascript": "^7.0.4"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.1",
