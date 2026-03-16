@@ -7,6 +7,7 @@ import { LedToggleButton } from '@/components/controls/LedToggleButton';
 import { Selector } from '@/components/controls/Selector';
 import { ThreeWaySwitch } from '@/components/controls/ThreeWaySwitch';
 import { LinkedPairControl } from '@/components/controls/LinkedPairControl';
+import { FilterEQDisplay } from '@/components/controls/FilterEQDisplay';
 import type { DeviceParameter, DeviceProfile } from '@/types/device-profile';
 
 /* ── Render helpers ────────────────────────────────────────────── */
@@ -421,17 +422,6 @@ function R1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: str
 /* ── ACS1 MKII Custom Layout helpers ──────────────────────────── */
 
 /** Rough HPF frequency display (0 = Off, 1–127 ≈ 20 Hz – 1 kHz) */
-function formatHPF(val: number): string {
-  if (val === 0) return 'Off';
-  const hz = Math.round(20 * Math.pow(10, val / 127));
-  return `${hz}Hz`;
-}
-
-function formatLPF(val: number): string {
-  if (val === 0) return 'Off';
-  const hz = Math.round(20000 * Math.pow(0.05, val / 127));
-  return hz >= 1000 ? `${(hz / 1000).toFixed(1)}kHz` : `${hz}Hz`;
-}
 
 /** Label stack: name (small caps) + CC number + widget + orange value */
 function ACS1Cell({
@@ -706,25 +696,29 @@ function ACS1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: s
 
         {/* Tonestack & Gate */}
         <ACS1SubPanel title="Tonestack & Gate">
-          <div className="grid grid-cols-3 gap-3 justify-items-center">
-            <ACS1Cell label="Presence" cc={p('acs1-presence').cc} valueDisplay={v('acs1-presence')}>
-              <Knob value={v('acs1-presence')} min={p('acs1-presence').min} max={p('acs1-presence').max} label="" hideLabel onChange={(n) => set('acs1-presence', n)} size={52} />
-            </ACS1Cell>
-            <ACS1Cell label="Resonance" cc={p('acs1-resonance').cc} valueDisplay={v('acs1-resonance')}>
-              <Knob value={v('acs1-resonance')} min={p('acs1-resonance').min} max={p('acs1-resonance').max} label="" hideLabel onChange={(n) => set('acs1-resonance', n)} size={52} />
-            </ACS1Cell>
-            <ACS1Cell label="HPF" cc={p('acs1-hpf').cc} valueDisplay={formatHPF(v('acs1-hpf'))}>
-              <Knob value={v('acs1-hpf')} min={p('acs1-hpf').min} max={p('acs1-hpf').max} label="" hideLabel onChange={(n) => set('acs1-hpf', n)} size={52} />
-            </ACS1Cell>
-            <ACS1Cell label="LPF" cc={p('acs1-lpf').cc} valueDisplay={formatLPF(v('acs1-lpf'))}>
-              <Knob value={v('acs1-lpf')} min={p('acs1-lpf').min} max={p('acs1-lpf').max} label="" hideLabel onChange={(n) => set('acs1-lpf', n)} size={52} />
-            </ACS1Cell>
-            <ACS1Cell label="Gate Thres" cc={p('acs1-gate-threshold').cc} valueDisplay={v('acs1-gate-threshold') === 0 ? 'Off' : v('acs1-gate-threshold')}>
-              <Knob value={v('acs1-gate-threshold')} min={p('acs1-gate-threshold').min} max={p('acs1-gate-threshold').max} label="" hideLabel onChange={(n) => set('acs1-gate-threshold', n)} size={52} />
-            </ACS1Cell>
-            <ACS1Cell label="Gate Rel" cc={p('acs1-gate-release').cc} valueDisplay={v('acs1-gate-release')}>
-              <Knob value={v('acs1-gate-release')} min={p('acs1-gate-release').min} max={p('acs1-gate-release').max} label="" hideLabel onChange={(n) => set('acs1-gate-release', n)} size={52} />
-            </ACS1Cell>
+          <div className="flex flex-col gap-3">
+            <div className="grid grid-cols-4 gap-3 justify-items-center">
+              <ACS1Cell label="Presence" cc={p('acs1-presence').cc} valueDisplay={v('acs1-presence')}>
+                <Knob value={v('acs1-presence')} min={p('acs1-presence').min} max={p('acs1-presence').max} label="" hideLabel onChange={(n) => set('acs1-presence', n)} size={52} />
+              </ACS1Cell>
+              <ACS1Cell label="Resonance" cc={p('acs1-resonance').cc} valueDisplay={v('acs1-resonance')}>
+                <Knob value={v('acs1-resonance')} min={p('acs1-resonance').min} max={p('acs1-resonance').max} label="" hideLabel onChange={(n) => set('acs1-resonance', n)} size={52} />
+              </ACS1Cell>
+              <ACS1Cell label="Gate Thres" cc={p('acs1-gate-threshold').cc} valueDisplay={v('acs1-gate-threshold') === 0 ? 'Off' : v('acs1-gate-threshold')}>
+                <Knob value={v('acs1-gate-threshold')} min={p('acs1-gate-threshold').min} max={p('acs1-gate-threshold').max} label="" hideLabel onChange={(n) => set('acs1-gate-threshold', n)} size={52} />
+              </ACS1Cell>
+              <ACS1Cell label="Gate Rel" cc={p('acs1-gate-release').cc} valueDisplay={v('acs1-gate-release')}>
+                <Knob value={v('acs1-gate-release')} min={p('acs1-gate-release').min} max={p('acs1-gate-release').max} label="" hideLabel onChange={(n) => set('acs1-gate-release', n)} size={52} />
+              </ACS1Cell>
+            </div>
+            <FilterEQDisplay
+              hpfValue={v('acs1-hpf')}
+              lpfValue={v('acs1-lpf')}
+              presenceValue={v('acs1-presence')}
+              resonanceValue={v('acs1-resonance')}
+              onHpfChange={(val) => set('acs1-hpf', val)}
+              onLpfChange={(val) => set('acs1-lpf', val)}
+            />
           </div>
         </ACS1SubPanel>
 
