@@ -18,6 +18,7 @@
   --accent-yellow: #E8DC70;
   --accent-peach: #E8A47D;
   --accent-coral: #D85A63;
+  --accent-acs1: #d49020;
 
   /* Bank LED colors */
   --bank-a: #E84040;
@@ -30,6 +31,7 @@
   --accent-coral-dim: #D85A6320;
   --accent-peach-dim: #E8A47D20;
   --accent-yellow-dim: #E8DC7020;
+  --accent-acs1-dim: #d4902020;
 
   /* Sizing */
   --navbar-height: 48px;

@@ -549,9 +549,9 @@ function ACS1ChannelColumn({
         <div
           className="text-[9px] font-mono font-bold text-center py-0.5 rounded tracking-widest uppercase"
           style={{
-            color: side === 'L' ? 'var(--accent-cyan)' : 'var(--accent-peach)',
-            background: side === 'L' ? 'var(--accent-cyan-dim)' : 'var(--accent-peach-dim)',
-            border: `1px solid ${side === 'L' ? 'var(--accent-cyan)' : 'var(--accent-peach)'}`,
+            color: side === 'L' ? 'var(--accent-cyan)' : 'var(--accent-acs1)',
+            background: side === 'L' ? 'var(--accent-cyan-dim)' : 'var(--accent-acs1-dim)',
+            border: `1px solid ${side === 'L' ? 'var(--accent-cyan)' : 'var(--accent-acs1)'}`,
           }}
         >
           {side === 'L' ? 'Left' : 'Right'}
@@ -575,13 +575,14 @@ function ACS1ChannelColumn({
       </div>
 
       {/* Gain + Volume */}
-      <div className="grid grid-cols-2 gap-2 justify-items-center">
+      <div className={`grid gap-2 justify-items-center ${isStereoMode ? 'grid-cols-2' : 'grid-cols-3'}`}>
         <ACS1Cell label="Gain" cc={gainParam.cc} valueDisplay={gv(gainParam)}>
           <Knob value={gv(gainParam)} min={gainParam.min} max={gainParam.max} label="" hideLabel onChange={(v) => onSet(gainParam.id, v)} size={52} />
         </ACS1Cell>
         <ACS1Cell label="Volume" cc={volParam.cc} valueDisplay={gv(volParam)}>
           <Knob value={gv(volParam)} min={volParam.min} max={volParam.max} label="" hideLabel onChange={(v) => onSet(volParam.id, v)} size={52} />
         </ACS1Cell>
+        {!isStereoMode && <div />}
       </div>
 
       {/* Bass / Mid / Treble */}
@@ -617,28 +618,6 @@ function ACS1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: s
 
   return (
     <div className="space-y-4">
-      {/* Mono / Stereo toggle */}
-      <div className="flex justify-center">
-        <button
-          onClick={() => setGroupLinked(deviceId, firstLinkedGroup, !isLinked)}
-          className="flex items-center gap-2 px-4 py-1.5 rounded text-xs font-semibold tracking-wider uppercase transition-led"
-          style={{
-            background: isStereoMode ? 'var(--accent-cyan-dim)' : 'var(--surface-raised)',
-            border: `1px solid ${isStereoMode ? 'var(--accent-cyan)' : 'var(--border)'}`,
-            color: isStereoMode ? 'var(--accent-cyan)' : 'var(--text-secondary)',
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-            {isStereoMode ? (
-              <path d="M6 4H4a4 4 0 000 8h2m4-8h2a4 4 0 010 8h-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            ) : (
-              <path d="M6 4H4a4 4 0 000 8h2m4-8h2a4 4 0 010 8h-2m-5-4h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            )}
-          </svg>
-          {isStereoMode ? 'Stereo' : 'Mono'}
-        </button>
-      </div>
-
       {/* Channel strip */}
       <div
         className="grid gap-3"
@@ -698,14 +677,14 @@ function ACS1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: s
 
         {/* Boost */}
         <ACS1SubPanel title="Boost">
-          <div className="flex items-start gap-4">
+          <div className="grid grid-cols-3 gap-3 justify-items-center">
             {(() => {
               const on = v('acs1-boost-engage') >= 64;
               return (
                 <ACS1Cell label="Boost" cc={p('acs1-boost-engage').cc} valueDisplay={on ? 'On' : 'Off'}>
                   <button
                     onClick={() => set('acs1-boost-engage', on ? 0 : 127)}
-                    className="px-4 py-1.5 rounded text-xs font-semibold transition-led"
+                    className="w-full px-4 py-1.5 rounded text-xs font-semibold transition-led"
                     style={{
                       background: on ? 'var(--accent-yellow-dim)' : 'var(--surface-raised)',
                       border: `1px solid ${on ? 'var(--accent-yellow)' : 'var(--border)'}`,
@@ -752,17 +731,17 @@ function ACS1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: s
 
         {/* Room / Reverb */}
         <ACS1SubPanel title="Room / Reverb">
-          <div className="flex items-start gap-4">
+          <div className="grid grid-cols-3 gap-3 items-start justify-items-center">
             {(() => {
               const rtParam = p('acs1-room-type');
               const rtVal = v('acs1-room-type');
               const rtLabel = rtParam.options?.find((o) => o.value === rtVal)?.label ?? String(rtVal);
               return (
-                <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-                  <span className="text-[9px] font-semibold uppercase tracking-wider leading-none" style={{ color: 'var(--text-muted)' }}>Room Type</span>
-                  <span className="text-[8px] font-mono leading-none mb-1" style={{ color: 'var(--border)' }}>CC{rtParam.cc}</span>
-                  <Selector value={rtVal} options={rtParam.options!} label="" hideLabel onChange={(n) => set('acs1-room-type', n)} />
-                  <span className="text-[9px] font-mono mt-0.5" style={{ color: 'var(--accent-peach)' }}>{rtLabel}</span>
+                <div className="flex flex-col items-center gap-0.5 w-full">
+                  <span className="text-[9px] font-semibold uppercase tracking-wider leading-none text-center" style={{ color: 'var(--text-muted)' }}>Room Type</span>
+                  <span className="text-[8px] font-mono leading-none" style={{ color: 'var(--border)' }}>CC{rtParam.cc}</span>
+                  <Selector value={rtVal} options={rtParam.options!} label="" hideLabel fullWidth onChange={(n) => set('acs1-room-type', n)} />
+                  <span className="text-[9px] font-mono text-center mt-0.5" style={{ color: 'var(--accent-peach)' }}>{rtLabel}</span>
                 </div>
               );
             })()}

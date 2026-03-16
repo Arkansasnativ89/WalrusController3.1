@@ -169,9 +169,9 @@ function DevicePanel({ deviceId }: { deviceId: string }) {
               onClick={(e) => { e.stopPropagation(); setGroupLinked(deviceId, firstLinkedGroup, !isStereoLinked); }}
               className="flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-medium transition-led"
               style={{
-                background: isStereoLinked ? 'var(--accent-cyan-dim)' : 'var(--surface-raised)',
-                border: `1px solid ${isStereoLinked ? 'var(--accent-cyan)' : 'var(--border)'}`,
-                color: isStereoLinked ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                background: isStereoLinked ? 'var(--surface-raised)' : 'var(--accent-acs1-dim)',
+                border: `1px solid ${isStereoLinked ? 'var(--border)' : 'var(--accent-acs1)'}`,
+                color: isStereoLinked ? 'var(--text-secondary)' : 'var(--accent-acs1)',
               }}
             >
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
@@ -181,7 +181,7 @@ function DevicePanel({ deviceId }: { deviceId: string }) {
                   <path d="M6 4H4a4 4 0 000 8h2m4-8h2a4 4 0 010 8h-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                 )}
               </svg>
-              {isStereoLinked ? 'Stereo' : 'Mono'}
+              {isStereoLinked ? 'Mono' : 'Stereo'}
             </button>
           )}
           {profile.presetSlots && (
