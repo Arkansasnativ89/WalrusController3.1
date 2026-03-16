@@ -58,9 +58,9 @@ Match the physical pedal LEDs for preset bank identity:
 
 | Token | Color | Usage |
 |-------|-------|-------|
-| `--bank-a` | Red (TBD exact hex) | Bank A presets (PC 0–2) |
-| `--bank-b` | Green (TBD exact hex) | Bank B presets (PC 3–5) |
-| `--bank-c` | Blue (TBD exact hex) | Bank C presets (PC 6–8) |
+| `--bank-a` | `#E53935` | Bank A presets (PC 0–2) |
+| `--bank-b` | `#43A047` | Bank B presets (PC 3–5) |
+| `--bank-c` | `#1E88E5` | Bank C presets (PC 6–8) |
 
 These should be visible as LED-style dots or glowing indicators in the preset grid and bank selectors.
 
@@ -279,8 +279,10 @@ Default bindings (can be remapped):
 
 | Decision | Value |
 |----------|-------|
-| Remember state between sessions | No strong preference — implement as optional |
-| Recommended approach | Persist last-sent parameter state to IndexedDB on change. On app open, restore UI state but do NOT auto-send to pedals (user must explicitly "push" to devices). This avoids unexpected sound changes on load |
+| Remember state between sessions | Yes — persist last-sent CC state per device |
+| Restore behavior | On app open: restore UI to last-sent parameter values (so the display matches what was last sent). Do NOT auto-transmit CCs on load — user must click "Push to Device" or manually adjust a control to send. This avoids unexpected sound changes at load time. |
+| Storage key | `settings` table, key: `lastSentState_<deviceId>` |
+| When to write | Debounced 500ms after any `setParameterValue()` call — not on every CC send |
 
 ---
 

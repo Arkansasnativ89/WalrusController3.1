@@ -3,6 +3,7 @@ import { Knob } from '@/components/controls/Knob';
 import { BipolarKnob } from '@/components/controls/BipolarKnob';
 import { BipolarSlider } from '@/components/controls/BipolarSlider';
 import { Toggle } from '@/components/controls/Toggle';
+import { LedToggleButton } from '@/components/controls/LedToggleButton';
 import { Selector } from '@/components/controls/Selector';
 import { ThreeWaySwitch } from '@/components/controls/ThreeWaySwitch';
 import { LinkedPairControl } from '@/components/controls/LinkedPairControl';
@@ -182,7 +183,12 @@ const R1_COLUMNS: Record<string, number> = {
   reverb: 3,
   tone: 3,
   switches: 3,
-  system: 3,
+};
+
+/** Per-parameter LED colors for the R1 system group */
+const R1_SYSTEM_COLORS: Record<string, string> = {
+  'r1-bypass': 'var(--accent-cyan)',
+  'r1-sustain': 'var(--accent-yellow)',
 };
 
 function R1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: string }) {
@@ -226,11 +232,14 @@ function R1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: str
     ? `X (${xEntry.label}) — ${xEntry.description?.replace(/→/g, '↔') ?? ''}`
     : null;
 
-  // Generic groups rendered after the custom sections (reverb, tone, switches, system + any extras)
-  const customKeys = new Set(['program', 'dynamics', 'modulation']);
-  const genericOrder = ['reverb', 'tone', 'switches', 'system'];
+  // Generic groups rendered after the custom sections (reverb, tone, switches + any extras).
+  // 'system' is excluded here and rendered separately as full-width LED toggle buttons.
+  const customKeys = new Set(['program', 'dynamics', 'modulation', 'system']);
+  const genericOrder = ['reverb', 'tone', 'switches'];
   const extraKeys = [...groups.keys()].filter((k) => !customKeys.has(k) && !genericOrder.includes(k));
   const genericGroups = [...genericOrder, ...extraKeys];
+
+  const systemParams = groups.get('system') ?? [];
 
   const sectionHeader = (label: string) => (
     <h3
@@ -346,7 +355,7 @@ function R1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: str
         </div>
       )}
 
-      {/* ── Generic groups: reverb, tone, switches, system ── */}
+      {/* ── Generic groups: reverb, tone, switches ── */}
       {genericGroups.map((groupKey) => {
         const params = groups.get(groupKey);
         if (!params?.length) return null;
@@ -381,6 +390,27 @@ function R1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: str
           />
         );
       })}
+
+      {/* ── System: full-width LED toggle buttons ── */}
+      {systemParams.length > 0 && (
+        <div>
+          {sectionHeader('System')}
+          <div className="grid grid-cols-2 gap-3">
+            {systemParams.map((param) => {
+              const val = pv(param.id);
+              return (
+                <LedToggleButton
+                  key={param.id}
+                  value={val >= 64}
+                  label={param.label}
+                  activeColor={R1_SYSTEM_COLORS[param.id] ?? 'var(--accent-cyan)'}
+                  onChange={(on) => set(param.id, on ? 127 : 0)}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
 
     </div>
   );

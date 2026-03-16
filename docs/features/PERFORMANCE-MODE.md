@@ -71,3 +71,34 @@ Configurable foot controller bindings:
 - Next preset, previous preset, bypass toggles
 - Mapping stored in `settings` IndexedDB table
 - See `docs/features/MIDI-INPUT-MAPPING.md` for the planned spec
+
+---
+
+## Phase 3 Execution Plan
+
+### Files to Create
+| File | What it does |
+|------|-------------|
+| `src/components/performance/PerformanceView.tsx` | Full-screen performance mode component |
+| `src/components/performance/SetlistManager.tsx` | Setlist CRUD UI — create, rename, delete, add/remove entries |
+| `src/components/performance/PresetSlotGrid.tsx` | 3×3 bank grid (A/B/C × Red/Green/Blue) that sends PC on click |
+
+### Files to Edit
+| File | Change |
+|------|--------|
+| `src/app/App.tsx` | Read `isPerformanceMode` from `performance-store`; conditionally render `<PerformanceView>` over the main layout |
+| `src/components/panels/SettingsPanel.tsx` | Add setlist management section or link to `SetlistManager` |
+| `src/stores/performance-store.ts` | Add `setlists[]` persistence via `preset-service` or a new `setlist-service.ts` if needed |
+
+### Build Order
+1. `PresetSlotGrid.tsx` — stateless, just renders the 3×3 grid and sends PC via `device-store.sendProgramChange()` for both devices simultaneously
+2. `PerformanceView.tsx` — full-screen layout, uses `performance-store` state, renders `PresetSlotGrid`, Next/Previous nav, active preset name
+3. Wire `App.tsx` — `isPerformanceMode` toggles render between `<ResizablePanels>` and `<PerformanceView>`
+4. `SetlistManager.tsx` — CRUD UI for setlists; reads/writes `performance-store.setlists`
+5. Setlist persistence — write setlists to `settings` IndexedDB table (key: `setlists`) via `storage-service.ts`
+6. Setlist import/export — JSON file, similar pattern to preset export/import in `PresetDrawer.tsx`
+
+### Key Store Actions Already Available
+- `enterPerformanceMode()` / `exitPerformanceMode()` — toggle `isPerformanceMode`
+- `setActiveSetlist(setlist)` — loads a setlist, resets `currentIndex` to 0
+- `nextPreset()` / `previousPreset()` / `goToIndex(n)` — navigation
