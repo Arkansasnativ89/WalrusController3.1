@@ -423,15 +423,14 @@ function R1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: str
 /** Rough HPF frequency display (0 = Off, 1–127 ≈ 20 Hz – 1 kHz) */
 function formatHPF(val: number): string {
   if (val === 0) return 'Off';
-  const hz = Math.round(20 * Math.pow(50, val / 127));
-  return hz >= 1000 ? `${(hz / 1000).toFixed(1)}k` : `${hz}`;
+  const hz = Math.round(20 * Math.pow(10, val / 127));
+  return `${hz}Hz`;
 }
 
-/** Rough LPF frequency display (0 = Off, 1–127 ≈ 20 kHz – 200 Hz) */
 function formatLPF(val: number): string {
   if (val === 0) return 'Off';
-  const hz = Math.round(20000 * Math.pow(0.01, val / 127));
-  return hz >= 1000 ? `${(hz / 1000).toFixed(1)}k` : `${hz}`;
+  const hz = Math.round(20000 * Math.pow(0.05, val / 127));
+  return hz >= 1000 ? `${(hz / 1000).toFixed(1)}kHz` : `${hz}Hz`;
 }
 
 /** Label stack: name (small caps) + CC number + widget + orange value */
