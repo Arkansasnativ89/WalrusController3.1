@@ -22,8 +22,8 @@
 | Decision | Value |
 |----------|-------|
 | Primary use case | Studio / home — dialing in tones, building presets |
-| Performance mode | Not needed — editor-only UI |
-| Setlist system | Out of scope for MVP |
+| Performance mode | Store implemented; full-screen UI planned for Phase 3 |
+| Setlist system | Store implemented; UI planned for Phase 3 |
 | Target user | Single user, personal tool (no auth), design for future multi-user if needed |
 
 ---
@@ -153,10 +153,11 @@ Used for: Reverb program (R1), Amp model (ACS1), Cabinet (ACS1), Room type (ACS1
 
 | Behavior | Implementation |
 |----------|---------------|
-| Style | Segmented control or dropdown — depends on option count |
-| ≤6 options | Segmented control (all options visible) |
-| >6 options | Dropdown with search (e.g., 12 cabinet models) |
-| Active state | LED-style highlight on selected option |
+| Style | Segmented control, grid, or dropdown — depends on option count |
+| ≤5 options | `SegmentedSelector` — horizontal button strip, all options visible |
+| 6 options | `GridSelector` — 3×2 grid |
+| 7+ options or `dropdown: true` | `DropdownSelector` — custom dropdown with search/filter input, click-outside close |
+| Active state | LED-style highlight (navy bg, cyan border/glow) on selected option |
 
 ### Three-Way Switches (R1 Only)
 

@@ -45,10 +45,10 @@ export function ThreeWaySwitch({ value, zones, label, onChange }: ThreeWaySwitch
             >
               {/* LED dot */}
               <span
-                className="absolute top-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full transition-led"
+                className="absolute top-1.5 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full transition-led"
                 style={{
                   background: isActive ? 'var(--accent-cyan)' : 'var(--text-muted)',
-                  boxShadow: isActive ? '0 0 6px var(--accent-cyan-glow)' : 'none',
+                  boxShadow: isActive ? '0 0 8px var(--accent-cyan), 0 0 16px var(--accent-cyan-glow)' : 'none',
                 }}
               />
               <span className="mt-1 block">{zone.label}</span>

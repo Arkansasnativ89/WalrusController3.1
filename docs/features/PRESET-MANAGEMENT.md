@@ -1,45 +1,60 @@
 # Preset Management
 
-> Preset CRUD, import/export specification.
+> Preset CRUD, A/B comparison, import/export — current implementation.
 
 ## Data Model
 
-See `docs/architecture/DATA-MODEL.md` for full schema.
+See `docs/architecture/DATA-MODEL.md` for full schema. Key fields: `id` (UUID), `name`, `deviceId`, `tags[]`, `parameters[]` (full CC snapshot), `createdAt`, `modifiedAt`.
 
 ## Operations
 
 ### Save
-- Capture all current parameter values from device store
-- Generate UUID, set timestamps
-- Store in IndexedDB via preset service
+- User opens the Preset Drawer, types a name, clicks Save
+- Captures all current `parameterValues` from `device-store` for the focused device
+- Generates a UUID and ISO timestamps
+- Stores in IndexedDB via `preset-service.savePreset()`
 
 ### Load
-- Read preset from IndexedDB
-- Send all parameter CC values to device via MIDI
-- Update device store with loaded values
-
-### Edit
-- Update name, description, tags
-- Update modifiedAt timestamp
+- User clicks a preset in the Preset Drawer list
+- `device-store.setAllParameters(deviceId, values)` loads the snapshot into state
+- `device-store.sendAllParameters(deviceId)` re-transmits all CC values to the pedal
 
 ### Delete
-- Remove from IndexedDB with confirmation dialog
+- Trash button on each preset row in the Preset Drawer
+- Calls `preset-service.deletePreset(id)`, refreshes the list
 
-### Duplicate
-- Clone preset with new UUID and "(Copy)" suffix
+### A/B Comparison
+- The Preset Drawer has two A and B snapshot slots per device session
+- Click "Capture A" or "Capture B" to snapshot the current parameter state into that slot
+- Clicking the A or B button then instantly sends all CCs for that snapshot
+- Lets you flip between two tones without saving a permanent preset
+- State is in-memory only (not persisted to IndexedDB)
+
+> **Note:** Edit, duplicate, and per-preset tag management are defined in the data model but not yet exposed in the current UI.
 
 ## Import / Export
 
 ### Export
-- Single preset → JSON file download
-- All presets for a device → JSON bundle
+- The Preset Drawer has an Export button
+- Downloads all presets for the focused device as a `PresetExport` JSON bundle
+- Bundle includes `version: 1`, `exportedAt`, `deviceId`, and the `presets[]` array
 
 ### Import
-- Accept JSON file (drag-and-drop or file picker)
-- Validate against PresetExport schema
-- Handle conflicts (duplicate IDs: skip, overwrite, or rename)
+- File picker (no drag-and-drop yet) accepts a JSON file
+- Validates against `isValidPresetExport()` before writing
+- Calls `preset-service.importPresets()` which does a `db.presets.bulkPut()`
+- Duplicate IDs are overwritten (last-write-wins, no conflict resolution UI)
 
 ## Storage
 
-- IndexedDB via Dexie.js
-- Indexed fields: deviceId, name, tags, createdAt, modifiedAt
+- IndexedDB via Dexie.js (`WalrusControllerDB`, `presets` table)
+- Indexed on: `deviceId`, `name`, `*tags`, `createdAt`, `modifiedAt`
+- Persists across browser sessions and app restarts
+- No cloud sync — export/import JSON for cross-device transfer
+
+## Preset Drawer UI
+
+- Right-side slide-in drawer with a semi-transparent backdrop
+- Scoped to `device-store.focusedDeviceId`
+- Sections: A/B Compare | Save Form | Preset List | Export/Import
+- Preset list sorted by `createdAt` (newest at top)

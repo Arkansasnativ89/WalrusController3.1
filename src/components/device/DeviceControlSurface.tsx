@@ -1,6 +1,7 @@
 import { useDeviceStore } from '@/stores/device-store';
 import { Knob } from '@/components/controls/Knob';
 import { BipolarKnob } from '@/components/controls/BipolarKnob';
+import { BipolarSlider } from '@/components/controls/BipolarSlider';
 import { Toggle } from '@/components/controls/Toggle';
 import { Selector } from '@/components/controls/Selector';
 import { ThreeWaySwitch } from '@/components/controls/ThreeWaySwitch';
@@ -166,83 +167,223 @@ const GROUP_LABELS: Record<string, string> = {
 
 /* ── R1 Layout ─────────────────────────────────────────────────── */
 
-const R1_GROUP_ORDER = [
-  'program',
-  'dynamics',
-  'modulation',
-  'reverb',
-  'tone',
-  'switches',
-  'system',
-];
-
-/** Groups rendered side-by-side as paired 2-column rows */
-const R1_GRID_ROWS: [string, string][] = [
-  ['dynamics', 'modulation'],
-];
+/** Per-program color identities drawn from the physical pedal's ring LEDs */
+const R1_PROGRAM_COLORS: Record<number, string> = {
+  1: '#40C840', // Spring — green
+  2: '#4880D0', // Hall — blue
+  3: '#C09020', // Plate — amber
+  4: '#C03030', // BFR — red
+  5: '#8030C0', // RFRCT — purple
+  6: '#20A090', // Air — teal
+};
 
 /** Groups whose inner controls are rendered in a fixed N-column grid */
 const R1_COLUMNS: Record<string, number> = {
   reverb: 3,
   tone: 3,
   switches: 3,
+  system: 3,
 };
 
 function R1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: string }) {
   const { renderParam } = useParameterRenderer(deviceId, profile);
+  const parameterValues = useDeviceStore((s) => s.devices[deviceId]?.parameterValues ?? {});
+  const setParameterValue = useDeviceStore((s) => s.setParameterValue);
 
-  // Group parameters
+  // Build group → params map
   const groups = new Map<string, DeviceParameter[]>();
   for (const param of profile.parameters) {
     const group = param.group ?? 'other';
     if (!groups.has(group)) groups.set(group, []);
     groups.get(group)!.push(param);
   }
-
-  // Sort within groups
   for (const params of groups.values()) {
     params.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }
 
-  // Build ordered render list
-  const seen = new Set<string>();
-  const elements: React.ReactNode[] = [];
+  const pv = (id: string) =>
+    parameterValues[id] ?? profile.parameters.find((p) => p.id === id)?.default ?? 0;
+  const set = (id: string, v: number) => setParameterValue(deviceId, id, v);
 
-  for (const groupKey of [...R1_GROUP_ORDER, ...groups.keys()]) {
-    if (seen.has(groupKey)) continue;
-    seen.add(groupKey);
+  // Pre-resolve custom sections
+  const programParam = groups.get('program')?.[0];
+  const dynamicsParams = groups.get('dynamics') ?? [];
+  const modulationParams = groups.get('modulation') ?? [];
 
-    const gridRow = R1_GRID_ROWS.find(([left]) => left === groupKey);
-    if (gridRow) {
-      const [left, right] = gridRow;
-      seen.add(right);
-      const leftParams = groups.get(left);
-      const rightParams = groups.get(right);
-      if (leftParams?.length || rightParams?.length) {
-        elements.push(
-          <div key={`${left}-${right}`} className="grid gap-5" style={{ gridTemplateColumns: '1fr 1fr' }}>
-            {leftParams?.length ? <ControlSection groupKey={left} params={leftParams} renderParam={renderParam} /> : <div />}
-            {rightParams?.length ? <ControlSection groupKey={right} params={rightParams} renderParam={renderParam} /> : <div />}
-          </div>,
-        );
-      }
-    } else {
-      const params = groups.get(groupKey);
-      if (params?.length) {
-        elements.push(
+  // Modulation column explicitly includes Pre Delay — it controls when reverb starts,
+  // making it temporally related to Rate and Depth. It also remains in the Reverb group.
+  const preDelayParam = profile.parameters.find((p) => p.id === 'r1-pre-delay');
+  const modColumnParams = [
+    ...modulationParams,
+    ...(preDelayParam ? [preDelayParam] : []),
+  ];
+
+  // X knob dynamic hint — updates as program changes
+  const progValue = pv('r1-prog');
+  const xParam = profile.parameters.find((p) => p.id === 'r1-x');
+  const xEntry = xParam?.dynamicLabel?.entries.find((e) => e.whenValue === progValue);
+  const xHint = xEntry
+    ? `X (${xEntry.label}) — ${xEntry.description?.replace(/→/g, '↔') ?? ''}`
+    : null;
+
+  // Generic groups rendered after the custom sections (reverb, tone, switches, system + any extras)
+  const customKeys = new Set(['program', 'dynamics', 'modulation']);
+  const genericOrder = ['reverb', 'tone', 'switches', 'system'];
+  const extraKeys = [...groups.keys()].filter((k) => !customKeys.has(k) && !genericOrder.includes(k));
+  const genericGroups = [...genericOrder, ...extraKeys];
+
+  const sectionHeader = (label: string) => (
+    <h3
+      className="text-[10px] font-semibold uppercase tracking-widest mb-2 pb-1"
+      style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}
+    >
+      {label}
+    </h3>
+  );
+
+  return (
+    <div className="space-y-6">
+
+      {/* ── Program ── */}
+      {programParam?.options && (
+        <div>
+          {sectionHeader('Program')}
+          <div className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(6, 1fr)' }}>
+            {programParam.options.map((opt) => {
+              const color = R1_PROGRAM_COLORS[opt.value] ?? 'var(--accent-cyan)';
+              const isActive = opt.value === pv(programParam.id);
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => set(programParam.id, opt.value)}
+                  className="relative py-2.5 rounded text-xs font-semibold transition-led overflow-hidden"
+                  style={{
+                    background: isActive ? `${color}22` : 'var(--surface-raised)',
+                    border: `1px solid ${isActive ? color : 'var(--border)'}`,
+                    color: isActive ? color : 'var(--text-secondary)',
+                    boxShadow: isActive
+                      ? `0 0 12px ${color}30, inset 0 0 10px ${color}15`
+                      : 'none',
+                  }}
+                >
+                  {/* Subtle color accent line for inactive buttons */}
+                  {!isActive && (
+                    <span
+                      className="absolute bottom-0 left-0 right-0"
+                      style={{ height: 2, background: `${color}55` }}
+                    />
+                  )}
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Dynamics + Modulation ── */}
+      {(dynamicsParams.length > 0 || modColumnParams.length > 0) && (
+        <div>
+          {sectionHeader('Dynamics + Modulation')}
+          {/* Two siblings share one container with a 1px divider */}
+          <div className="grid" style={{ gridTemplateColumns: '1fr 1px 1fr' }}>
+
+            {/* Dynamics column */}
+            <div className="pr-6">
+              {dynamicsParams.map((param) => {
+                if (param.type === 'bipolar') {
+                  const value = pv(param.id);
+                  return (
+                    <div key={param.id} className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="text-[9px] font-semibold uppercase tracking-widest"
+                          style={{ color: 'var(--text-muted)' }}
+                        >
+                          {param.label}
+                        </span>
+                        <span className="text-[9px] font-mono" style={{ color: 'var(--border)' }}>
+                          CC {param.cc}
+                        </span>
+                      </div>
+                      <BipolarSlider
+                        value={value}
+                        min={param.min}
+                        max={param.max}
+                        center={param.centerValue ?? 64}
+                        lowLabel={param.bipolarLabels?.low ?? 'Low'}
+                        highLabel={param.bipolarLabels?.high ?? 'High'}
+                        neutralLabel="Neutral"
+                        onChange={(v) => set(param.id, v)}
+                      />
+                    </div>
+                  );
+                }
+                return renderParam(param);
+              })}
+            </div>
+
+            {/* 1px column divider */}
+            <div style={{ background: 'var(--border-subtle)' }} />
+
+            {/* Modulation column */}
+            <div className="pl-6">
+              <h4
+                className="text-[9px] font-semibold uppercase tracking-widest mb-3"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                Modulation
+              </h4>
+              <div
+                className="grid gap-3 justify-items-center"
+                style={{ gridTemplateColumns: `repeat(${modColumnParams.length}, 1fr)` }}
+              >
+                {modColumnParams.map(renderParam)}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ── Generic groups: reverb, tone, switches, system ── */}
+      {genericGroups.map((groupKey) => {
+        const params = groups.get(groupKey);
+        if (!params?.length) return null;
+
+        // Tone gets a dynamic X-knob hint line below the controls
+        if (groupKey === 'tone') {
+          return (
+            <div key="tone">
+              {sectionHeader(GROUP_LABELS['tone'] ?? 'Tone')}
+              <div
+                className="grid gap-4 items-start justify-items-center"
+                style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}
+              >
+                {params.map(renderParam)}
+              </div>
+              {xHint && (
+                <p className="mt-3 text-center text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                  {xHint}
+                </p>
+              )}
+            </div>
+          );
+        }
+
+        return (
           <ControlSection
             key={groupKey}
             groupKey={groupKey}
             params={params}
             renderParam={renderParam}
             columns={R1_COLUMNS[groupKey]}
-          />,
+          />
         );
-      }
-    }
-  }
+      })}
 
-  return <div className="space-y-5">{elements}</div>;
+    </div>
+  );
 }
 
 /* ── ACS1 Channel Strip Layout ─────────────────────────────────── */
@@ -320,7 +461,7 @@ function ControlSection({
   return (
     <div className="flex-1 min-w-0">
       <h3
-        className="text-[10px] font-semibold uppercase tracking-widest mb-3 pb-1"
+        className="text-[10px] font-semibold uppercase tracking-widest mb-2 pb-1"
         style={{
           color: 'var(--text-muted)',
           borderBottom: '1px solid var(--border-subtle)',

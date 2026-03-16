@@ -1,152 +1,127 @@
 # Walrus MIDI Controller — Implementation Plan
 
-> **Project:** Browser-based MIDI controller for Walrus Audio pedals
-> **Target Devices:** Walrus Audio R1 (MKI), Walrus Audio ACS1 (MKII)
-> **Stack:** React + Vite + TypeScript, Zustand, Dexie.js, Web MIDI API
-> **Author:** Hunter Carle
+> **Project:** Browser-based MIDI controller for Walrus Audio pedals  
+> **Target Devices:** Walrus Audio R1, Walrus Audio ACS1 MKII  
+> **Stack:** React 19 + Vite + TypeScript, Zustand v5, Dexie.js v4, Web MIDI API, Tailwind CSS v4  
+> **Author:** Hunter Carle  
 > **Created:** 2026-03-15
 
 ---
 
 ## Project Vision
 
-A production-ready PWA that provides real-time MIDI control, preset management, and a visual interface for the Walrus Audio R1 and ACS1 MKII pedals. Designed for both studio editing and live performance use.
+A production-ready PWA that provides real-time MIDI control, preset management, and a visual interface for the Walrus Audio R1 and ACS1 MKII pedals. Both pedals are controlled side-by-side via USB through an HX Effects multi-FX unit.
 
 ---
 
-## Phase 0 — Foundation (Week 1–2)
+## Phase 0 — Foundation (Week 1–2) ✅ COMPLETE
 
 **Goal:** Scaffold the project, establish MIDI connectivity, prove we can talk to a pedal.
 
 ### Deliverables
 
-- Vite + React + TypeScript project initialized
-- Tailwind CSS + shadcn/ui configured
-- PWA manifest and service worker scaffolded (Vite PWA plugin)
-- Web MIDI API connection layer built and tested
-- Device detection: enumerate connected USB MIDI devices
-- Raw MIDI monitor: display incoming/outgoing MIDI messages in real time
-- First successful CC message sent to a connected Walrus pedal
-
-### Key Decisions to Lock
-
-- State management pattern (Zustand store shape)
-- Folder structure and module boundaries
-- MIDI service abstraction interface
-- Preset JSON schema v1
-
-### Exit Criteria
-
-- [ ] App runs locally, detects a connected Walrus pedal by name
-- [ ] Sending a CC message from the UI changes a parameter on the physical pedal
-- [ ] Incoming MIDI from the pedal is displayed in the monitor
-- [ ] Project compiles with zero TypeScript errors
+- [x] Vite + React 19 + TypeScript (strict) project initialized
+- [x] Tailwind CSS v4 configured via `@tailwindcss/vite`
+- [x] PWA manifest and service worker scaffolded (vite-plugin-pwa, Workbox auto-update)
+- [x] `MidiService` singleton wrapping Web MIDI API, RX + TX support
+- [x] `midi-store` with port enumeration, auto-select "HX Effects" output
+- [x] `MidiMonitor` drawer component (color-coded RX/TX log, 200-message cap)
+- [x] Five-store Zustand architecture established
+- [x] Incoming and outgoing MIDI display verified
+- [x] TypeScript strict, zero compile errors
 
 ---
 
-## Phase 1 — Device Profiles & Parameter Control (Week 3–4)
+## Phase 1 — Device Profiles & Parameter Control (Week 3–4) ✅ COMPLETE
 
 **Goal:** Build the device profile system and real-time parameter control UI for both pedals.
 
 ### Deliverables
 
-- **Device Profile JSON Schema** — a generic, extensible format that describes:
-  - Device name, manufacturer, MIDI channel defaults
-  - Available parameters (CC number, label, min/max, default, type: knob | toggle | select)
-  - Available programs/presets (PC numbers)
-  - Bypass CC (if applicable)
-- **R1 Device Profile** — complete CC map from Walrus MIDI implementation chart
-  - Reverb type selection
-  - Decay, tone, damping, modulation parameters
-  - Bypass toggle
-  - Preset recall via PC
-- **ACS1 MKII Device Profile** — complete CC map from Walrus MIDI implementation chart
-  - Amp model selection
-  - Gain, EQ (bass/mid/treble), volume, reverb parameters
-  - Cabinet sim toggle
-  - Bypass toggle
-  - Preset recall via PC
-- **Parameter Control UI** — per-device control surface
-  - Knob components (rotary encoder style, touch/mouse drag)
-  - Toggle switches for on/off parameters
-  - Dropdown selectors for multi-option parameters (reverb type, amp model)
-  - Real-time CC transmission on value change
-  - Visual feedback of current parameter state
+- [x] **Device Profile JSON Schema** — 6 parameter types (`continuous`, `bipolar`, `toggle`, `select`, `three_way`, `linked_pair`), `dynamicLabel`, `stereoLinked`, `midiOutputName`
+- [x] **R1 Device Profile** — 15 parameters with verified CC assignments, 16 preset slots, dynamic X-knob label
+- [x] **ACS1 MKII Device Profile** — 28+ parameters, stereo L/R linked pairs, 16 preset slots
+- [x] **Control Components** — `Knob`, `BipolarKnob`, `BipolarSlider`, `Toggle`, `Selector` (segmented/grid/dropdown), `ThreeWaySwitch`, `LinkedPairControl`
+- [x] **`R1Layout`** — grouped control surface with BipolarSlider for Swell/Duck
+- [x] **`ACS1Layout`** — stereo channel-strip layout, Mono/Stereo toggle, global sections
+- [x] Real-time CC transmission (no debounce) via `device-store.setParameterValue()`
+- [x] Stereo link/unlink with automatic CC mirroring
+- [x] Per-device MIDI channel override
+- [x] `ResizablePanels` split layout (default 40/60 split)
+- [x] `SettingsPanel` with MIDI port selector, channel overrides, keyboard shortcut viewer
+- [x] `useKeyboardShortcuts` hook with configurable bindings
 
-### Exit Criteria
+### Exit Criteria ✅
 
-- [ ] Both device profiles load from JSON config files
-- [ ] Every documented CC parameter for R1 is controllable from the UI
-- [ ] Every documented CC parameter for ACS1 MKII is controllable from the UI
-- [ ] Parameter changes send correct CC messages on the correct channel
-- [ ] Adding a hypothetical third device requires only a new JSON file, no code changes
+- [x] Both device profiles load from JSON config files
+- [x] Every documented CC parameter for R1 is controllable from the UI
+- [x] Every documented CC parameter for ACS1 MKII is controllable from the UI
+- [x] Parameter changes send correct CC messages on the correct channel
+- [x] Adding a new device requires only a new JSON file + one import in App.tsx
 
 ---
 
-## Phase 2 — Preset Management (Week 5–6)
+## Phase 2 — Preset Management (Week 5–6) ✅ Core Complete
 
 **Goal:** Save, load, organize, import, and export presets for both pedals.
 
 ### Deliverables
 
-- **Preset Data Model (v1)**
-  - Preset name, description, tags
-  - Target device identifier
-  - Parameter snapshot (all CC values at save time)
-  - Timestamp metadata (created, modified)
-  - Optional: signal chain position hint (for future multi-pedal chaining)
-- **IndexedDB Storage** via Dexie.js
-  - Presets table with indexed fields (device, name, tags)
-  - Device profiles table (for custom/modified profiles)
-  - App settings table
-- **Preset CRUD UI**
-  - Save current parameter state as a new preset
-  - Load a preset → sends all CC values to the device
-  - Edit preset metadata (name, tags, description)
-  - Delete preset with confirmation
-  - Duplicate preset
-- **Import / Export**
-  - Export single preset as JSON
-  - Export all presets for a device as JSON bundle
-  - Import preset JSON with validation and conflict resolution
-  - Drag-and-drop import support
-- **Preset Browser**
-  - List view with search, filter by device, filter by tags
-  - Sort by name, date created, date modified
-  - Quick-load on click/tap
+- [x] **Preset Data Model v1** — UUID, name, tags, deviceId, full CC snapshot, timestamps, optional chainPosition
+- [x] **IndexedDB via Dexie.js** — `presets` table (indexed: deviceId, name, *tags, createdAt, modifiedAt), `settings` table
+- [x] **Save preset** — name input, captures current parameterValues, stores to IndexedDB
+- [x] **Load preset** — click-to-load, sends all CCs to physical pedal
+- [x] **Delete preset** — per-preset delete button
+- [x] **A/B Comparison** — in-memory snapshot slots, instant flip
+- [x] **Export** — all device presets as JSON bundle (`PresetExport` format v1)
+- [x] **Import** — file picker, `isValidPresetExport()` validation, `bulkPut()` to IndexedDB
+- [x] **`PresetDrawer`** — right-side sliding drawer, scoped to focused device
+- [x] App works fully offline after initial load (PWA service worker)
+
+### Outstanding (Phase 2 backlog)
+- [ ] Preset search / filter by name or tags
+- [ ] Duplicate preset (clone with new UUID)
+- [ ] Edit preset metadata (name, tags, description)
+- [ ] Drag-and-drop JSON import
 
 ### Exit Criteria
-
-- [ ] Full CRUD lifecycle works for presets on both devices
-- [ ] Presets persist across browser sessions (IndexedDB)
-- [ ] Exported JSON can be imported on a different machine/browser
-- [ ] Preset load sends correct CC values and pedal responds accurately
-- [ ] App works offline after initial load (PWA caching)
+- [x] Full save/load/delete lifecycle works for both devices
+- [x] Presets persist across browser sessions (IndexedDB)
+- [x] Exported JSON can be re-imported on a different machine
+- [x] Preset load sends correct CC values and pedal responds accurately
+- [x] App works offline after initial load
 
 ---
 
-## Phase 3 — Performance Mode & Setlists (Week 7–8)
+## Phase 3 — Performance Mode & Setlists (Week 7–8) ⏳ IN PROGRESS
 
 **Goal:** Build a streamlined, stage-ready UI for live use.
 
 ### Deliverables
 
-- **Performance Mode UI**
-  - Full-screen, high-contrast, large touch targets
-  - Current preset name displayed prominently
-  - Next/previous preset navigation (tap or MIDI foot controller input)
-  - Minimal chrome — no menus, no edit controls visible
-  - Tap-to-exit back to edit mode
-- **Setlist System**
-  - Create named setlists (ordered list of presets, potentially across both devices)
-  - Reorder presets within a setlist via drag-and-drop
-  - Step through setlist sequentially (next/prev)
-  - Per-song grouping (optional: group multiple presets under a song name)
-  - Setlist CRUD + import/export
-- **MIDI Input Handling**
-  - Map incoming MIDI messages (from a foot controller or the pedals themselves) to app actions
-  - Configurable: "CC 64 on channel 16 = next preset"
-  - Default mappings + user-customizable mapping table
+- [x] **`performance-store`** — `Setlist` + `SetlistEntry` types, `enterPerformanceMode`, `exitPerformanceMode`, `nextPreset`, `previousPreset`, `goToIndex`, `setActiveSetlist`
+- [ ] **Performance Mode UI** — full-screen, high-contrast, large touch targets, current preset name, next/prev navigation, tap-to-exit
+- [ ] **Setlist Management UI** — create/edit/delete setlists, per-entry song name, drag-and-drop reorder
+- [ ] **MIDI Input Mapping** — foot controller CC → app action routing, configurable mapping table stored in `settings`
+- [ ] **Setlist Import/Export**
+
+---
+
+## Phase 4 — Polish, Testing & Deployment (Week 9–10) ⏳ IN PROGRESS
+
+**Goal:** Reliable, well-tested, deployable application.
+
+### Deliverables
+
+- [x] **Unit test suite** — Vitest + jsdom: device-profile validation, midi-utils, preset-validation
+- [x] **Mock MIDI devices** — `MockMIDIInput.simulateMessage()`, `MockMIDIOutput.sentMessages[]`
+- [x] **TypeScript strict** — `noUnusedLocals`, `noUnusedParameters`, `noUncheckedIndexedAccess`, zero errors
+- [x] **ESLint** configured
+- [ ] Integration tests (component + store interaction)
+- [ ] PWA icons finalized (192, 512, 512 maskable)
+- [ ] CI/CD pipeline (GitHub Actions)
+- [ ] Lighthouse PWA audit ≥ 90
+- [ ] Production deployment
 
 ### Exit Criteria
 

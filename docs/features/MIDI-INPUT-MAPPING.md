@@ -1,41 +1,71 @@
 # MIDI Input Mapping
 
-> Incoming MIDI message to app action mapping.
+> Incoming MIDI message → app action mapping.
 
-## Purpose
+## Status: ❌ Not yet implemented (Phase 3)
 
-Allow external MIDI controllers (foot switches, control surfaces) to trigger app actions like navigating presets and setlists.
+MIDI input mapping is planned for Phase 3. The architecture supports it
+(`midi-store` already logs all incoming messages and the `settings` IndexedDB table
+is reserved for storing mapping configs), but no mapping evaluation logic or
+configuration UI has been built yet.
 
-## Mapping Table
+---
 
-| Action | Default Mapping | Configurable |
-|--------|----------------|-------------|
-| Next Preset | CC 64, Ch 16, value ≥ 64 | ✅ |
-| Previous Preset | CC 65, Ch 16, value ≥ 64 | ✅ |
-| Toggle Bypass | CC 66, Ch 16, value ≥ 64 | ✅ |
-| Enter Performance Mode | — | ✅ |
-| Exit Performance Mode | — | ✅ |
+## Planned Design
 
-## Configuration
+### Purpose
 
-Mappings stored in IndexedDB settings table:
+Allow a MIDI foot controller (or the pedals themselves sending PC/CC) to trigger
+app actions such as navigating presets and setlists, toggling bypass, or entering
+performance mode.
+
+### Planned Action Mappings
+
+| Action | Trigger Type | Notes |
+|--------|-------------|-------|
+| Next Preset | CC value ≥ 64 | Configurable CC + channel |
+| Previous Preset | CC value ≥ 64 | Configurable CC + channel |
+| Toggle R1 Bypass | CC value ≥ 64 | |
+| Toggle ACS1 Bypass | CC value ≥ 64 | |
+| Enter Performance Mode | CC or PC | |
+| Exit Performance Mode | CC or PC | |
+
+### Planned Storage Format (`settings` table key: `midiInputMappings`)
+
 ```json
-{
-  "key": "midiInputMappings",
-  "value": [
-    {
-      "action": "nextPreset",
-      "messageType": "cc",
-      "channel": 15,
-      "data1": 64,
-      "threshold": 64
-    }
-  ]
-}
+[
+  {
+    "action": "nextPreset",
+    "messageType": "cc",
+    "channel": 15,
+    "data1": 64,
+    "threshold": 64
+  }
+]
 ```
 
-## Implementation
+### Evaluation Logic (planned)
 
-- MIDI input listener checks incoming messages against mapping table
-- Matching messages trigger corresponding store actions
-- Mappings are evaluated in order; first match wins
+1. Incoming message parsed by `midiService`
+2. Checked against mapping table in order
+3. First match triggers the corresponding store action
+4. Keyboard shortcuts (`useKeyboardShortcuts.ts`) already implement the same
+   action names — MIDI mappings will reuse those action strings
+
+---
+
+## Current Workaround
+
+Keyboard shortcuts (`useKeyboardShortcuts.ts`) provide equivalent functionality
+for desktop use:
+
+| Action | Default Key |
+|--------|-------------|
+| Toggle R1 Bypass | `1` |
+| Toggle ACS1 Bypass | `2` |
+| Toggle R1 Sustain | `S` |
+| Toggle ACS1 Boost | `B` |
+| Open Preset Drawer | `P` |
+| Open MIDI Monitor | `M` |
+| Save Preset | `Ctrl+S` |
+| A/B Compare Toggle | `A` |

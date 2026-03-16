@@ -33,7 +33,7 @@ function GridSelector({ value, options, label, onChange, hideLabel }: SelectorPr
       {!hideLabel && <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>{label}</span>}
       <div
         className="grid gap-1"
-        style={{ gridTemplateColumns: '1fr 1fr' }}
+        style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}
       >
         {options.map((opt) => {
           const isActive = opt.value === value;
