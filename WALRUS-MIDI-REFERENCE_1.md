@@ -7,6 +7,43 @@
 
 ---
 
+## App Implementation Notes
+
+This section records how the WalrusController app implements this reference spec. Update whenever implementation decisions diverge from the hardware defaults documented below.
+
+### Channel Configuration
+
+The hardware default for both pedals is MIDI channel 1. The developer has assigned different channels in the app device profiles:
+
+| Device | Hardware Default | App Channel (1-indexed) | App Channel (0-indexed) | Profile JSON |
+|--------|-----------------|------------------------|------------------------|--------------|
+| Walrus R1 (MKI) | 1 | **5** | 4 | `src/data/device-profiles/walrus-r1.json` |
+| Walrus ACS1 (MKII) | 1 | **7** | 6 | `src/data/device-profiles/walrus-acs1-mkii.json` |
+
+### Implementation Completeness
+
+| Item | Status | Notes |
+|------|--------|-------|
+| R1 parameters | Complete | All 15 parameters implemented; 16 preset slots; `ccSendOrder` follows this reference |
+| ACS1 parameters | Complete | All 28+ parameters implemented; stereo linked pairs; 16 preset slots; `ccSendOrder` follows this reference |
+| Output EQ Low (ACS1) | **Not implemented** | No confirmed CC # in this reference — omitted from device profile |
+| Output EQ High (ACS1) | **Not implemented** | No confirmed CC # in this reference — omitted from device profile |
+
+### MIDI Topology
+
+- Single HX Effects USB MIDI output; both pedals daisy-chained via **MIDI THRU**
+- `navigator.requestMIDIAccess({ sysex: false })` — SysEx is not requested or used
+
+### Message Conventions
+
+| Convention | App Behavior |
+|-----------|--------------|
+| Toggle values | `0` = off, `127` = on (matches this spec) |
+| Three-way switch values | `21` (low), `64` (mid), `106` (high) — midpoints of zones 0–42 / 43–85 / 86–127 (matches this spec) |
+| Program Change | Sent via `device-store.sendProgramChange()` — **no tail gap logic implemented** |
+
+---
+
 ## MIDI Architecture
 
 ### Channel Isolation Strategy
