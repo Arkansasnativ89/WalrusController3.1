@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Knob } from './Knob';
 import { Selector } from './Selector';
 import type { DeviceParameter } from '@/types/device-profile';
@@ -14,7 +15,7 @@ interface LinkedPairControlProps {
   hideLink?: boolean;
 }
 
-export function LinkedPairControl({
+export const LinkedPairControl = memo(function LinkedPairControl({
   leftParam,
   rightParam,
   leftValue,
@@ -72,18 +73,12 @@ export function LinkedPairControl({
         {!hideLink && (
           <button
             onClick={onToggleLink}
-            className="mb-5 p-1.5 rounded transition-led"
+            className={`mb-5 p-1.5 rounded transition-led ${!isLinked ? 'hover:border-[var(--text-secondary)]' : ''}`}
             title={isLinked ? 'Unlink L/R' : 'Link L/R'}
             style={{
               color: isLinked ? 'var(--accent-cyan)' : 'var(--text-muted)',
               background: isLinked ? 'var(--accent-cyan-dim)' : 'transparent',
               border: `1px solid ${isLinked ? 'var(--accent-cyan)' : 'var(--border)'}`,
-            }}
-            onMouseEnter={(e) => {
-              if (!isLinked) e.currentTarget.style.borderColor = 'var(--text-secondary)';
-            }}
-            onMouseLeave={(e) => {
-              if (!isLinked) e.currentTarget.style.borderColor = 'var(--border)';
             }}
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
@@ -115,4 +110,4 @@ export function LinkedPairControl({
       </div>
     </div>
   );
-}
+});

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
 import type { ParameterOption } from '@/types/device-profile';
 
 interface SelectorProps {
@@ -14,7 +14,7 @@ interface SelectorProps {
   fullWidth?: boolean;
 }
 
-export function Selector({ value, options, label, onChange, hideLabel, dropdown, fullWidth }: SelectorProps) {
+export const Selector = memo(function Selector({ value, options, label, onChange, hideLabel, dropdown, fullWidth }: SelectorProps) {
   if (dropdown) {
     return <DropdownSelector value={value} options={options} label={label} onChange={onChange} hideLabel={hideLabel} fullWidth={fullWidth} />;
   }
@@ -25,7 +25,7 @@ export function Selector({ value, options, label, onChange, hideLabel, dropdown,
     return <SegmentedSelector value={value} options={options} label={label} onChange={onChange} hideLabel={hideLabel} />;
   }
   return <DropdownSelector value={value} options={options} label={label} onChange={onChange} hideLabel={hideLabel} fullWidth={fullWidth} />;
-}
+});
 
 function GridSelector({ value, options, label, onChange, hideLabel }: SelectorProps) {
   return (
@@ -98,9 +98,12 @@ function DropdownSelector({ value, options, label, onChange, hideLabel, fullWidt
 
   const selectedLabel = options.find((o) => o.value === value)?.label ?? '—';
 
-  const filtered = search
-    ? options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase()))
-    : options;
+  const filtered = useMemo(
+    () => search
+      ? options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase()))
+      : options,
+    [options, search],
+  );
 
   const handleSelect = useCallback(
     (v: number) => {
@@ -175,16 +178,10 @@ function DropdownSelector({ value, options, label, onChange, hideLabel, fullWidt
               <button
                 key={opt.value}
                 onClick={() => handleSelect(opt.value)}
-                className="w-full px-3 py-1.5 text-xs text-left transition-led"
+                className={`w-full px-3 py-1.5 text-xs text-left transition-led ${opt.value !== value ? 'hover:bg-[var(--surface-hover)]' : ''}`}
                 style={{
                   background: opt.value === value ? 'var(--accent-navy)' : 'transparent',
                   color: opt.value === value ? 'var(--accent-cyan)' : 'var(--text-secondary)',
-                }}
-                onMouseEnter={(e) => {
-                  if (opt.value !== value) e.currentTarget.style.background = 'var(--surface-hover)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = opt.value === value ? 'var(--accent-navy)' : 'transparent';
                 }}
               >
                 {opt.label}

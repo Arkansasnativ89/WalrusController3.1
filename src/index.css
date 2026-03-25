@@ -127,3 +127,20 @@ body {
 .module-selected-acs1 {
   animation: module-glow-acs1 2.5s ease-in-out infinite;
 }
+
+/* ── Preset Bank Hover ────────────────────────────────────────── */
+.preset-bank-a:hover {
+  border-color: var(--bank-a) !important;
+  color: var(--bank-a) !important;
+  box-shadow: 0 0 6px rgba(232, 64, 64, 0.25);
+}
+.preset-bank-b:hover {
+  border-color: var(--bank-b) !important;
+  color: var(--bank-b) !important;
+  box-shadow: 0 0 6px rgba(64, 200, 64, 0.25);
+}
+.preset-bank-c:hover {
+  border-color: var(--bank-c) !important;
+  color: var(--bank-c) !important;
+  box-shadow: 0 0 6px rgba(64, 128, 232, 0.25);
+}

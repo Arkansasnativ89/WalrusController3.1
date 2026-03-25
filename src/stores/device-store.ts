@@ -1,10 +1,17 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { DeviceProfile } from '@/types/device-profile';
 import type { Preset } from '@/types/preset';
 import { midiService } from '@/services/midi-service';
 import { buildCC, buildPC } from '@/utils/midi-utils';
+import { db } from '@/services/storage-service';
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** Clamp a MIDI channel number to 0-15 */
+function clampChannel(ch: number): number {
+  return Math.max(0, Math.min(15, Math.round(ch)));
+}
 
 interface ParameterState {
   [parameterId: string]: number;
@@ -61,240 +68,313 @@ function initDeviceState(profile: DeviceProfile): PerDeviceState {
   return { parameterValues, linkedGroups, channelOverride: null };
 }
 
-export const useDeviceStore = create<DeviceState>((set, get) => ({
-  profiles: [],
-  devices: {},
-  focusedDeviceId: null,
+/** AbortController for the currently in-progress recallPreset operation */
+let recallAbortController: AbortController | null = null;
 
-  loadProfiles: (profiles) => {
-    const devices: Record<string, PerDeviceState> = {};
-    for (const profile of profiles) {
-      devices[profile.id] = initDeviceState(profile);
-    }
-    set({ profiles, devices, focusedDeviceId: profiles[0]?.id ?? null });
+/** Custom Zustand storage adapter backed by Dexie settings table */
+const dexieStorage = {
+  getItem: async (name: string): Promise<string | null> => {
+    const row = await db.settings.get(name);
+    return row ? (row.value as string) : null;
   },
+  setItem: async (name: string, value: string): Promise<void> => {
+    await db.settings.put({ key: name, value });
+  },
+  removeItem: async (name: string): Promise<void> => {
+    await db.settings.delete(name);
+  },
+};
 
-  focusDevice: (deviceId) => set({ focusedDeviceId: deviceId }),
+export const useDeviceStore = create<DeviceState>()(
+  persist(
+    (set, get) => ({
+      profiles: [],
+      devices: {},
+      focusedDeviceId: null,
 
-  getProfile: (deviceId) => get().profiles.find((p) => p.id === deviceId),
+      loadProfiles: (profiles) => {
+        const freshDevices: Record<string, PerDeviceState> = {};
+        const persisted = get().devices;
 
-  getDeviceState: (deviceId) => get().devices[deviceId],
+        for (const profile of profiles) {
+          const fresh = initDeviceState(profile);
+          const saved = persisted[profile.id];
 
-  setParameterValue: (deviceId, parameterId, value) => {
-    const profile = get().profiles.find((p) => p.id === deviceId);
-    const deviceState = get().devices[deviceId];
-    if (!profile || !deviceState) return;
-
-    const param = profile.parameters.find((p) => p.id === parameterId);
-    if (!param) return;
-
-    const clampedValue = Math.max(param.min, Math.min(param.max, Math.round(value)));
-    const channel = get().getEffectiveChannel(deviceId);
-
-    // Send CC to device
-    const data = buildCC(channel, param.cc, clampedValue);
-    try {
-      midiService.send(data);
-      midiService.notifyOutgoing(data);
-    } catch {
-      // Output not selected — update state anyway
-    }
-
-    const updates: ParameterState = { [parameterId]: clampedValue };
-
-    // Handle linked pairs: mirror value to paired parameter if group is linked
-    if (param.type === 'linked_pair' && param.linkedTo && param.group) {
-      const isLinked = deviceState.linkedGroups[param.group] ?? true;
-      if (isLinked) {
-        const pairedParam = profile.parameters.find((p) => p.id === param.linkedTo);
-        if (pairedParam) {
-          const pairedClamped = Math.max(pairedParam.min, Math.min(pairedParam.max, clampedValue));
-          const pairedData = buildCC(channel, pairedParam.cc, pairedClamped);
-          try {
-            midiService.send(pairedData);
-            midiService.notifyOutgoing(pairedData);
-          } catch {
-            // continue
+          if (saved) {
+            // Merge: use persisted values for params that still exist, fill in new params from profile defaults
+            const mergedParams: ParameterState = {};
+            for (const param of profile.parameters) {
+              mergedParams[param.id] = saved.parameterValues[param.id] !== undefined
+                ? saved.parameterValues[param.id]
+                : param.default;
+            }
+            const mergedGroups: LinkedGroupState = {};
+            for (const param of profile.parameters) {
+              if (param.type === 'linked_pair' && param.group) {
+                mergedGroups[param.group] = saved.linkedGroups[param.group] !== undefined
+                  ? saved.linkedGroups[param.group]
+                  : true;
+              }
+            }
+            freshDevices[profile.id] = {
+              parameterValues: mergedParams,
+              linkedGroups: mergedGroups,
+              channelOverride: saved.channelOverride,
+            };
+          } else {
+            freshDevices[profile.id] = fresh;
           }
-          updates[pairedParam.id] = pairedClamped;
         }
-      }
-    }
 
-    set((state) => {
-      const existing = state.devices[deviceId];
-      if (!existing) return state;
-      return {
-        devices: {
-          ...state.devices,
-          [deviceId]: {
-            ...existing,
-            parameterValues: { ...existing.parameterValues, ...updates },
-          },
-        },
-      };
-    });
-  },
+        set({ profiles, devices: freshDevices, focusedDeviceId: get().focusedDeviceId ?? profiles[0]?.id ?? null });
+      },
 
-  setAllParameters: (deviceId, values) => {
-    set((state) => {
-      const existing = state.devices[deviceId];
-      if (!existing) return state;
-      return {
-        devices: {
-          ...state.devices,
-          [deviceId]: { ...existing, parameterValues: values },
-        },
-      };
-    });
-  },
+      focusDevice: (deviceId) => set({ focusedDeviceId: deviceId }),
 
-  sendAllParameters: (deviceId) => {
-    const profile = get().profiles.find((p) => p.id === deviceId);
-    const deviceState = get().devices[deviceId];
-    if (!profile || !deviceState) return;
+      getProfile: (deviceId) => get().profiles.find((p) => p.id === deviceId),
 
-    const channel = get().getEffectiveChannel(deviceId);
-    const { parameterValues } = deviceState;
+      getDeviceState: (deviceId) => get().devices[deviceId],
 
-    // Use ccSendOrder if available, otherwise send in parameter array order
-    const orderedIds = profile.ccSendOrder ??
-      profile.parameters.map((p) => p.id);
+      setParameterValue: (deviceId, parameterId, value) => {
+        const profile = get().profiles.find((p) => p.id === deviceId);
+        const deviceState = get().devices[deviceId];
+        if (!profile || !deviceState) return;
 
-    for (const paramId of orderedIds) {
-      const param = profile.parameters.find((p) => p.id === paramId);
-      const value = parameterValues[paramId];
-      if (param && value !== undefined) {
-        const data = buildCC(channel, param.cc, value);
+        // Validate parameter exists BEFORE sending any MIDI
+        const param = profile.parameters.find((p) => p.id === parameterId);
+        if (!param) return;
+
+        const clampedValue = Math.max(param.min, Math.min(param.max, Math.round(value)));
+        const channel = get().getEffectiveChannel(deviceId);
+
+        // Send CC to device
+        const data = buildCC(channel, param.cc, clampedValue);
         try {
           midiService.send(data);
           midiService.notifyOutgoing(data);
         } catch {
-          // continue sending remaining params
+          // Output not selected — update state anyway
         }
-      }
-    }
-  },
 
-  sendProgramChange: (deviceId, program) => {
-    const channel = get().getEffectiveChannel(deviceId);
-    const data = buildPC(channel, program);
-    try {
-      midiService.send(data);
-      midiService.notifyOutgoing(data);
-    } catch {
-      // Output not selected
-    }
-  },
+        const updates: ParameterState = { [parameterId]: clampedValue };
 
-  recallPreset: async (deviceId, preset) => {
-    const profile = get().profiles.find((p) => p.id === deviceId);
-    const deviceState = get().devices[deviceId];
-    if (!profile || !deviceState) return;
+        // Handle linked pairs: mirror value to paired parameter if group is linked
+        if (param.type === 'linked_pair' && param.linkedTo && param.group) {
+          const isLinked = deviceState.linkedGroups[param.group] ?? true;
+          if (isLinked) {
+            const pairedParam = profile.parameters.find((p) => p.id === param.linkedTo);
+            if (pairedParam) {
+              const pairedClamped = Math.max(pairedParam.min, Math.min(pairedParam.max, clampedValue));
+              const pairedData = buildCC(channel, pairedParam.cc, pairedClamped);
+              try {
+                midiService.send(pairedData);
+                midiService.notifyOutgoing(pairedData);
+              } catch {
+                // continue
+              }
+              updates[pairedParam.id] = pairedClamped;
+            }
+          }
+        }
 
-    const channel = get().getEffectiveChannel(deviceId);
+        set((state) => {
+          const existing = state.devices[deviceId];
+          if (!existing) return state;
+          return {
+            devices: {
+              ...state.devices,
+              [deviceId]: {
+                ...existing,
+                parameterValues: { ...existing.parameterValues, ...updates },
+              },
+            },
+          };
+        });
+      },
 
-    // 1. Send Program Change to switch the pedal's internal slot
-    const pcData = buildPC(channel, preset.pcSlot);
-    try {
-      midiService.send(pcData);
-      midiService.notifyOutgoing(pcData);
-    } catch {
-      // Output not selected
-    }
+      setAllParameters: (deviceId, values) => {
+        set((state) => {
+          const existing = state.devices[deviceId];
+          if (!existing) return state;
+          return {
+            devices: {
+              ...state.devices,
+              [deviceId]: { ...existing, parameterValues: values },
+            },
+          };
+        });
+      },
 
-    // 2. Wait for the pedal to load its internal preset before overwriting CCs
-    await delay(100);
+      sendAllParameters: (deviceId) => {
+        const profile = get().profiles.find((p) => p.id === deviceId);
+        const deviceState = get().devices[deviceId];
+        if (!profile || !deviceState) return;
 
-    // 3. Update UI state immediately (no MIDI) so knobs reflect the preset values
-    const values: Record<string, number> = {};
-    for (const pv of preset.parameters) {
-      values[pv.parameterId] = pv.value;
-    }
-    get().setAllParameters(deviceId, values);
+        const channel = get().getEffectiveChannel(deviceId);
+        const { parameterValues } = deviceState;
 
-    // 4. Stream CC messages with a small inter-message gap to avoid buffer flooding
-    const orderedIds = profile.ccSendOrder ?? profile.parameters.map((p) => p.id);
-    for (const paramId of orderedIds) {
-      const param = profile.parameters.find((p) => p.id === paramId);
-      const value = values[paramId];
-      if (param && value !== undefined) {
-        const data = buildCC(channel, param.cc, value);
+        // Use ccSendOrder if available, otherwise send in parameter array order
+        const orderedIds = profile.ccSendOrder ??
+          profile.parameters.map((p) => p.id);
+
+        for (const paramId of orderedIds) {
+          const param = profile.parameters.find((p) => p.id === paramId);
+          const value = parameterValues[paramId];
+          if (param && value !== undefined) {
+            const data = buildCC(channel, param.cc, value);
+            try {
+              midiService.send(data);
+              midiService.notifyOutgoing(data);
+            } catch {
+              // continue sending remaining params
+            }
+          }
+        }
+      },
+
+      sendProgramChange: (deviceId, program) => {
+        const channel = get().getEffectiveChannel(deviceId);
+        const data = buildPC(channel, program);
         try {
           midiService.send(data);
           midiService.notifyOutgoing(data);
         } catch {
-          // continue sending remaining params
+          // Output not selected
         }
-        await delay(10);
-      }
-    }
-  },
+      },
 
-  toggleBypass: (deviceId) => {
-    const profile = get().profiles.find((p) => p.id === deviceId);
-    const deviceState = get().devices[deviceId];
-    if (!profile?.bypassCC || !deviceState) return;
-
-    const bypassParam = profile.parameters.find(
-      (p) => p.cc === profile.bypassCC
-    );
-    if (!bypassParam) return;
-
-    const currentValue = deviceState.parameterValues[bypassParam.id] ?? 0;
-    const newValue = currentValue >= 64 ? 0 : 127;
-    get().setParameterValue(deviceId, bypassParam.id, newValue);
-  },
-
-  setChannelOverride: (deviceId, channel) => {
-    set((state) => {
-      const existing = state.devices[deviceId];
-      if (!existing) return state;
-      return {
-        devices: {
-          ...state.devices,
-          [deviceId]: { ...existing, channelOverride: channel },
-        },
-      };
-    });
-  },
-
-  getEffectiveChannel: (deviceId) => {
-    const deviceState = get().devices[deviceId];
-    const profile = get().profiles.find((p) => p.id === deviceId);
-    if (deviceState?.channelOverride !== null && deviceState?.channelOverride !== undefined) {
-      return deviceState.channelOverride;
-    }
-    return profile?.defaultChannel ?? 0;
-  },
-
-  setGroupLinked: (deviceId, group, linked) => {
-    const profile = get().profiles.find((p) => p.id === deviceId);
-    set((state) => {
-      const existing = state.devices[deviceId];
-      if (!existing) return state;
-
-      let updatedGroups: LinkedGroupState;
-      if (profile?.stereoLinked) {
-        // Global link: toggle ALL groups together
-        updatedGroups = {};
-        for (const key of Object.keys(existing.linkedGroups)) {
-          updatedGroups[key] = linked;
+      recallPreset: async (deviceId, preset) => {
+        // Abort any in-progress recall
+        if (recallAbortController) {
+          recallAbortController.abort();
         }
-      } else {
-        updatedGroups = { ...existing.linkedGroups, [group]: linked };
-      }
+        const controller = new AbortController();
+        recallAbortController = controller;
+        const { signal } = controller;
 
-      return {
-        devices: {
-          ...state.devices,
-          [deviceId]: { ...existing, linkedGroups: updatedGroups },
-        },
-      };
-    });
-  },
+        const profile = get().profiles.find((p) => p.id === deviceId);
+        const deviceState = get().devices[deviceId];
+        if (!profile || !deviceState) return;
 
-  isGroupLinked: (deviceId, group) => {
-    return get().devices[deviceId]?.linkedGroups[group] ?? true;
-  },
-}));
+        const channel = get().getEffectiveChannel(deviceId);
+
+        // 1. Send Program Change to switch the pedal's internal slot
+        const pcData = buildPC(channel, preset.pcSlot);
+        try {
+          midiService.send(pcData);
+          midiService.notifyOutgoing(pcData);
+        } catch {
+          // Output not selected
+        }
+
+        // 2. Wait for the pedal to load its internal preset before overwriting CCs
+        await delay(100);
+        if (signal.aborted) return;
+
+        // 3. Update UI state immediately (no MIDI) so knobs reflect the preset values
+        const values: Record<string, number> = {};
+        for (const pv of preset.parameters) {
+          values[pv.parameterId] = pv.value;
+        }
+        get().setAllParameters(deviceId, values);
+
+        // 4. Stream CC messages with a small inter-message gap to avoid buffer flooding
+        const orderedIds = profile.ccSendOrder ?? profile.parameters.map((p) => p.id);
+        for (const paramId of orderedIds) {
+          if (signal.aborted) return;
+
+          const param = profile.parameters.find((p) => p.id === paramId);
+          const value = values[paramId];
+          if (param && value !== undefined) {
+            const data = buildCC(channel, param.cc, value);
+            try {
+              midiService.send(data);
+              midiService.notifyOutgoing(data);
+            } catch {
+              // continue sending remaining params
+            }
+            await delay(10);
+          }
+        }
+      },
+
+      toggleBypass: (deviceId) => {
+        const profile = get().profiles.find((p) => p.id === deviceId);
+        const deviceState = get().devices[deviceId];
+        if (!profile?.bypassCC || !deviceState) return;
+
+        const bypassParam = profile.parameters.find(
+          (p) => p.cc === profile.bypassCC
+        );
+        if (!bypassParam) return;
+
+        const currentValue = deviceState.parameterValues[bypassParam.id] ?? 0;
+        const newValue = currentValue >= 64 ? 0 : 127;
+        get().setParameterValue(deviceId, bypassParam.id, newValue);
+      },
+
+      setChannelOverride: (deviceId, channel) => {
+        set((state) => {
+          const existing = state.devices[deviceId];
+          if (!existing) return state;
+          return {
+            devices: {
+              ...state.devices,
+              [deviceId]: {
+                ...existing,
+                channelOverride: channel !== null ? clampChannel(channel) : null,
+              },
+            },
+          };
+        });
+      },
+
+      getEffectiveChannel: (deviceId) => {
+        const deviceState = get().devices[deviceId];
+        const profile = get().profiles.find((p) => p.id === deviceId);
+        if (deviceState?.channelOverride !== null && deviceState?.channelOverride !== undefined) {
+          return clampChannel(deviceState.channelOverride);
+        }
+        return clampChannel(profile?.defaultChannel ?? 0);
+      },
+
+      setGroupLinked: (deviceId, group, linked) => {
+        const profile = get().profiles.find((p) => p.id === deviceId);
+        set((state) => {
+          const existing = state.devices[deviceId];
+          if (!existing) return state;
+
+          let updatedGroups: LinkedGroupState;
+          if (profile?.stereoLinked) {
+            // Global link: toggle ALL groups together
+            updatedGroups = {};
+            for (const key of Object.keys(existing.linkedGroups)) {
+              updatedGroups[key] = linked;
+            }
+          } else {
+            updatedGroups = { ...existing.linkedGroups, [group]: linked };
+          }
+
+          return {
+            devices: {
+              ...state.devices,
+              [deviceId]: { ...existing, linkedGroups: updatedGroups },
+            },
+          };
+        });
+      },
+
+      isGroupLinked: (deviceId, group) => {
+        return get().devices[deviceId]?.linkedGroups[group] ?? true;
+      },
+    }),
+    {
+      name: 'deviceState',
+      storage: dexieStorage,
+      partialize: (state) => ({
+        devices: state.devices,
+        focusedDeviceId: state.focusedDeviceId,
+      }),
+    },
+  ),
+);

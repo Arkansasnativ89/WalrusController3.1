@@ -58,6 +58,8 @@ export function ResizablePanels({
 
       {/* Divider */}
       <div
+        role="separator"
+        aria-label="Resize panels"
         className="flex-shrink-0 flex items-center justify-center cursor-col-resize group"
         style={{ width: '6px' }}
         onPointerDown={handlePointerDown}

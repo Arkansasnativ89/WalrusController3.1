@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { Component, useEffect } from 'react';
+import type { ReactNode, ErrorInfo } from 'react';
 import { useMidi } from '@/hooks/useMidi';
 import { useDeviceStore } from '@/stores/device-store';
 import { usePresetStore } from '@/stores/preset-store';
@@ -13,6 +14,62 @@ import { PresetDrawer } from '@/components/panels/PresetDrawer';
 import r1Profile from '@/data/device-profiles/walrus-r1.json';
 import acs1Profile from '@/data/device-profiles/walrus-acs1-mkii.json';
 import type { DeviceProfile } from '@/types/device-profile';
+
+/* ── ErrorBoundary ────────────────────────────────────────────── */
+
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('ErrorBoundary caught:', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div
+          className="flex flex-col items-center justify-center gap-4 p-8"
+          style={{ height: '100%', color: 'var(--text-primary)' }}
+        >
+          <h2 className="text-lg font-semibold" style={{ color: 'var(--accent-coral)' }}>
+            Something went wrong
+          </h2>
+          <p className="text-sm font-mono max-w-lg text-center" style={{ color: 'var(--text-secondary)' }}>
+            {this.state.error?.message ?? 'Unknown error'}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 rounded text-sm font-semibold"
+            style={{
+              background: 'var(--accent-cyan-dim)',
+              border: '1px solid var(--accent-cyan)',
+              color: 'var(--accent-cyan)',
+            }}
+          >
+            Reload
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const deviceProfiles: DeviceProfile[] = [
   r1Profile as DeviceProfile,
@@ -130,10 +187,7 @@ function NavButton({
     <button
       onClick={onClick}
       title={shortcut ? `${label} (${shortcut})` : label}
-      className="p-2 rounded transition-led"
-      style={{ color: 'var(--text-secondary)' }}
-      onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-primary)')}
-      onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}
+      className="p-2 rounded transition-led text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
     >
       {children}
     </button>
@@ -188,34 +242,17 @@ function DevicePanel({ deviceId }: { deviceId: string }) {
           {profile.presetSlots && (
             <div className="flex gap-1">
               {profile.presetSlots.slice(0, 9).map((slot, i) => {
-                // Bank color: 0-2 = A (red), 3-5 = B (green), 6-8 = C (blue)
-                const bankColor =
-                  i < 3
-                    ? 'var(--bank-a)'
-                    : i < 6
-                      ? 'var(--bank-b)'
-                      : 'var(--bank-c)';
                 return (
                   <button
                     key={slot.pc}
                     onClick={() => sendProgramChange(deviceId, slot.pc)}
-                    className="px-1.5 py-0.5 text-[9px] rounded transition-led font-mono"
+                    className={`px-1.5 py-0.5 text-[9px] rounded transition-led font-mono preset-bank-btn ${i < 3 ? 'preset-bank-a' : i < 6 ? 'preset-bank-b' : 'preset-bank-c'}`}
                     style={{
                       background: 'var(--surface-raised)',
                       border: '1px solid var(--border)',
                       color: 'var(--text-secondary)',
                     }}
                     title={slot.name}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = bankColor;
-                      e.currentTarget.style.color = bankColor;
-                      e.currentTarget.style.boxShadow = `0 0 6px ${bankColor}40`;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--border)';
-                      e.currentTarget.style.color = 'var(--text-secondary)';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
                   >
                     {i + 1}
                   </button>
@@ -279,6 +316,7 @@ export default function App() {
         className="flex-1 min-h-0"
         style={{ paddingBottom: midiMonitorOpen ? '240px' : '0' }}
       >
+        <ErrorBoundary>
         <ResizablePanels
           left={
             <div
@@ -312,6 +350,7 @@ export default function App() {
           }
           defaultSplit={40}
         />
+        </ErrorBoundary>
       </main>
 
       {/* Overlays */}

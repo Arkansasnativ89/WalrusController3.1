@@ -1,3 +1,5 @@
+import { memo } from 'react';
+
 interface ThreeWayZone {
   label: string;
   value: number;
@@ -19,7 +21,7 @@ function getActiveZone(value: number, zones: ThreeWayZone[]): number {
   return 0;
 }
 
-export function ThreeWaySwitch({ value, zones, label, onChange }: ThreeWaySwitchProps) {
+export const ThreeWaySwitch = memo(function ThreeWaySwitch({ value, zones, label, onChange }: ThreeWaySwitchProps) {
   const activeIndex = getActiveZone(value, zones);
 
   return (
@@ -35,6 +37,7 @@ export function ThreeWaySwitch({ value, zones, label, onChange }: ThreeWaySwitch
             <button
               key={zone.value}
               onClick={() => onChange(zone.value)}
+              aria-pressed={isActive}
               className="relative flex-1 px-2 py-1.5 text-xs font-medium transition-led"
               style={{
                 background: isActive ? 'var(--accent-navy)' : 'var(--surface-raised)',
@@ -58,4 +61,4 @@ export function ThreeWaySwitch({ value, zones, label, onChange }: ThreeWaySwitch
       </div>
     </div>
   );
-}
+});

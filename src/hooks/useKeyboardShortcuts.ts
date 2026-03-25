@@ -7,6 +7,9 @@ export function useKeyboardShortcuts() {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      // Skip key repeats — prevents rapid-fire toggles when holding a key
+      if (e.repeat) return;
+
       // Don't fire when typing in inputs
       const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
@@ -67,6 +70,9 @@ export function useKeyboardShortcuts() {
           togglePresetDrawer();
           break;
         case 'toggle-ab-compare':
+          // TODO: A/B compare requires snapshot state to be lifted from PresetDrawer
+          // local state into a store (e.g., preset-store) so it can be toggled globally.
+          console.warn('[KeyboardShortcuts] toggle-ab-compare: not yet implemented — A/B state must be lifted to a store first.');
           break;
       }
     }

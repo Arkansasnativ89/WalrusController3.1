@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useDeviceStore } from '@/stores/device-store';
 import { Knob } from '@/components/controls/Knob';
 import { BipolarKnob } from '@/components/controls/BipolarKnob';
@@ -33,7 +34,7 @@ function useParameterRenderer(
     return entry?.label ?? param.label;
   };
 
-  const renderParam = (param: DeviceParameter): React.ReactNode => {
+  const renderParam = useCallback((param: DeviceParameter): React.ReactNode => {
     const value = parameterValues[param.id] ?? param.default;
 
     switch (param.type) {
@@ -137,7 +138,7 @@ function useParameterRenderer(
       default:
         return null;
     }
-  };
+  }, [parameterValues, setParameterValue, setGroupLinked, linkedGroups, profile, deviceId, hideLink]);
 
   return { renderParam };
 }

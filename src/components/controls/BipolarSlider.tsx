@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { memo, useCallback, useRef } from 'react';
 
 interface BipolarSliderProps {
   value: number;
@@ -12,7 +12,7 @@ interface BipolarSliderProps {
   neutralLabel?: string;
 }
 
-export function BipolarSlider({
+export const BipolarSlider = memo(function BipolarSlider({
   value,
   min,
   max,
@@ -90,6 +90,10 @@ export function BipolarSlider({
         <div
           ref={trackRef}
           className="relative flex-1"
+          role="slider"
+          aria-valuemin={min}
+          aria-valuemax={max}
+          aria-valuenow={Math.round(value)}
           style={{ height: 24, cursor: 'ew-resize', touchAction: 'none' }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -183,4 +187,4 @@ export function BipolarSlider({
       </span>
     </div>
   );
-}
+});

@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { memo, useCallback } from 'react';
 
 interface LedToggleButtonProps {
   value: boolean;
@@ -7,7 +7,7 @@ interface LedToggleButtonProps {
   activeColor?: string;
 }
 
-export function LedToggleButton({
+export const LedToggleButton = memo(function LedToggleButton({
   value,
   label,
   onChange,
@@ -64,4 +64,4 @@ export function LedToggleButton({
       </span>
     </button>
   );
-}
+});

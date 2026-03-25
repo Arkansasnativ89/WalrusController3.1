@@ -4,6 +4,10 @@ import { midiService } from '@/services/midi-service';
 
 const MAX_LOG_MESSAGES = 200;
 
+// Module-level unsubscribe functions to survive store re-creation
+let unsubMessage: (() => void) | null = null;
+let unsubConnection: (() => void) | null = null;
+
 interface MidiState {
   isSupported: boolean;
   isConnected: boolean;
@@ -41,14 +45,20 @@ export const useMidiStore = create<MidiState>((set) => ({
     try {
       await midiService.connect();
 
-      midiService.onConnectionChange((inputs, outputs) => {
+      // Clean up any existing listeners before registering new ones (React StrictMode safety)
+      if (unsubConnection) unsubConnection();
+      if (unsubMessage) unsubMessage();
+
+      unsubConnection = midiService.onConnectionChange((inputs, outputs) => {
         set({ inputs, outputs, isConnected: true });
       });
 
-      midiService.onMessage((message) => {
-        set((state) => ({
-          messageLog: [message, ...state.messageLog].slice(0, MAX_LOG_MESSAGES),
-        }));
+      unsubMessage = midiService.onMessage((message) => {
+        set((state) => {
+          const newLog = [message, ...state.messageLog];
+          if (newLog.length > MAX_LOG_MESSAGES) newLog.length = MAX_LOG_MESSAGES;
+          return { messageLog: newLog };
+        });
       });
 
       const inputs = midiService.getInputs();
@@ -101,6 +111,8 @@ export const useMidiStore = create<MidiState>((set) => ({
   },
 
   disconnect: () => {
+    if (unsubConnection) { unsubConnection(); unsubConnection = null; }
+    if (unsubMessage) { unsubMessage(); unsubMessage = null; }
     midiService.disconnect();
     set({
       isConnected: false,

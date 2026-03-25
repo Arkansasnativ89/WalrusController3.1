@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { memo, useCallback, useRef, useState } from 'react';
 
 interface KnobProps {
   value: number;
@@ -27,7 +27,7 @@ function describeArc(cx: number, cy: number, r: number, startAngle: number, endA
   return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 0 ${end.x} ${end.y}`;
 }
 
-export function Knob({ value, min, max, label, onChange, size = 64, color, hideLabel }: KnobProps) {
+export const Knob = memo(function Knob({ value, min, max, label, onChange, size = 64, color, hideLabel }: KnobProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
@@ -137,6 +137,11 @@ export function Knob({ value, min, max, label, onChange, size = 64, color, hideL
           width={size}
           height={size}
           viewBox={`0 0 ${size} ${size}`}
+          role="slider"
+          aria-valuemin={min}
+          aria-valuemax={max}
+          aria-valuenow={Math.round(value)}
+          aria-label={label}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
@@ -215,4 +220,4 @@ export function Knob({ value, min, max, label, onChange, size = 64, color, hideL
       )}
     </div>
   );
-}
+});

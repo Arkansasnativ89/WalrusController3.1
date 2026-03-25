@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import { db } from '@/services/storage-service';
 
 export interface SetlistEntry {
   presetId: string;
@@ -28,38 +30,63 @@ interface PerformanceState {
   goToIndex: (index: number) => void;
 }
 
-export const usePerformanceStore = create<PerformanceState>((set, get) => ({
-  isPerformanceMode: false,
-  activeSetlist: null,
-  currentIndex: 0,
-  setlists: [],
-
-  enterPerformanceMode: () => set({ isPerformanceMode: true }),
-  exitPerformanceMode: () => set({ isPerformanceMode: false }),
-
-  setActiveSetlist: (setlist) => set({ activeSetlist: setlist, currentIndex: 0 }),
-
-  nextPreset: () => {
-    const { activeSetlist, currentIndex } = get();
-    if (!activeSetlist) return;
-    const maxIndex = activeSetlist.entries.length - 1;
-    if (currentIndex < maxIndex) {
-      set({ currentIndex: currentIndex + 1 });
-    }
+/** Custom Zustand storage adapter backed by Dexie settings table */
+const dexieStorage = {
+  getItem: async (name: string): Promise<string | null> => {
+    const row = await db.settings.get(name);
+    return row ? (row.value as string) : null;
   },
-
-  previousPreset: () => {
-    const { currentIndex } = get();
-    if (currentIndex > 0) {
-      set({ currentIndex: currentIndex - 1 });
-    }
+  setItem: async (name: string, value: string): Promise<void> => {
+    await db.settings.put({ key: name, value });
   },
-
-  goToIndex: (index) => {
-    const { activeSetlist } = get();
-    if (!activeSetlist) return;
-    if (index >= 0 && index < activeSetlist.entries.length) {
-      set({ currentIndex: index });
-    }
+  removeItem: async (name: string): Promise<void> => {
+    await db.settings.delete(name);
   },
-}));
+};
+
+export const usePerformanceStore = create<PerformanceState>()(
+  persist(
+    (set, get) => ({
+      isPerformanceMode: false,
+      activeSetlist: null,
+      currentIndex: 0,
+      setlists: [],
+
+      enterPerformanceMode: () => set({ isPerformanceMode: true }),
+      exitPerformanceMode: () => set({ isPerformanceMode: false }),
+
+      setActiveSetlist: (setlist) => set({ activeSetlist: setlist, currentIndex: 0 }),
+
+      nextPreset: () => {
+        const { activeSetlist, currentIndex } = get();
+        if (!activeSetlist) return;
+        const maxIndex = activeSetlist.entries.length - 1;
+        if (currentIndex < maxIndex) {
+          set({ currentIndex: currentIndex + 1 });
+        }
+      },
+
+      previousPreset: () => {
+        const { currentIndex } = get();
+        if (currentIndex > 0) {
+          set({ currentIndex: currentIndex - 1 });
+        }
+      },
+
+      goToIndex: (index) => {
+        const { activeSetlist } = get();
+        if (!activeSetlist) return;
+        if (index >= 0 && index < activeSetlist.entries.length) {
+          set({ currentIndex: index });
+        }
+      },
+    }),
+    {
+      name: 'performanceState',
+      storage: dexieStorage,
+      partialize: (state) => ({
+        setlists: state.setlists,
+      }),
+    },
+  ),
+);

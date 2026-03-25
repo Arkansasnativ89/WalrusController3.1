@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { memo, useCallback } from 'react';
 
 interface ToggleProps {
   value: boolean;
@@ -7,7 +7,7 @@ interface ToggleProps {
   activeColor?: string;
 }
 
-export function Toggle({ value, label, onChange, activeColor }: ToggleProps) {
+export const Toggle = memo(function Toggle({ value, label, onChange, activeColor }: ToggleProps) {
   const handleClick = useCallback(() => onChange(!value), [value, onChange]);
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -47,4 +47,4 @@ export function Toggle({ value, label, onChange, activeColor }: ToggleProps) {
       <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>{label}</span>
     </div>
   );
-}
+});

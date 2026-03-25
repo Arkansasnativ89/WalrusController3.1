@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { memo, useRef, useEffect, useState } from 'react';
 
 // ── Frequency helpers (match DeviceControlSurface formatHPF/formatLPF) ──────
 
@@ -48,7 +48,7 @@ interface FilterEQDisplayProps {
   onLpfChange: (val: number) => void;
 }
 
-export function FilterEQDisplay({
+export const FilterEQDisplay = memo(function FilterEQDisplay({
   hpfValue, lpfValue, presenceValue, resonanceValue,
   onHpfChange, onLpfChange,
 }: FilterEQDisplayProps) {
@@ -235,6 +235,7 @@ export function FilterEQDisplay({
       >
         <canvas
           ref={canvasRef}
+          aria-label="Filter EQ Display"
           style={{ display: 'block', width: '100%', height: `${CANVAS_H}px` }}
         />
       </div>
@@ -326,4 +327,4 @@ export function FilterEQDisplay({
       </div>
     </div>
   );
-}
+});

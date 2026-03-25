@@ -1,7 +1,30 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, memo } from 'react';
 import { useMidiStore } from '@/stores/midi-store';
 import { useUIStore } from '@/stores/ui-store';
 import { formatMidiMessage } from '@/utils/midi-utils';
+import type { MidiMessage } from '@/types/midi';
+
+const VISIBLE_MESSAGE_CAP = 100;
+
+const MidiMessageRow = memo(function MidiMessageRow({ msg }: { msg: MidiMessage }) {
+  return (
+    <div
+      className="px-2 py-0.5 rounded"
+      style={{
+        background:
+          msg.direction === 'in'
+            ? 'var(--accent-navy)'
+            : 'rgba(30, 214, 208, 0.08)',
+        color: 'var(--accent-cyan)',
+      }}
+    >
+      <span style={{ color: 'var(--text-muted)' }}>
+        {msg.direction === 'in' ? 'RX' : 'TX'}
+      </span>{' '}
+      {formatMidiMessage(msg)}
+    </div>
+  );
+});
 
 export function MidiMonitorDrawer() {
   const { messageLog, clearLog, isConnected } = useMidiStore();
@@ -85,26 +108,13 @@ export function MidiMonitorDrawer() {
             {isConnected ? 'Waiting for MIDI messages…' : 'Connect a MIDI device to begin'}
           </p>
         )}
-        {messageLog.map((msg, i) => (
-          <div
-            key={`${msg.timestamp}-${i}`}
-            className="px-2 py-0.5 rounded"
-            style={{
-              background:
-                msg.direction === 'in'
-                  ? 'var(--accent-navy)'
-                  : 'rgba(30, 214, 208, 0.08)',
-              color:
-                msg.direction === 'in'
-                  ? 'var(--accent-cyan)'
-                  : 'var(--accent-cyan)',
-            }}
-          >
-            <span style={{ color: 'var(--text-muted)' }}>
-              {msg.direction === 'in' ? 'RX' : 'TX'}
-            </span>{' '}
-            {formatMidiMessage(msg)}
-          </div>
+        {messageLog.length > VISIBLE_MESSAGE_CAP && (
+          <p className="text-center text-[10px] py-0.5" style={{ color: 'var(--text-muted)' }}>
+            Showing {VISIBLE_MESSAGE_CAP} of {messageLog.length} messages
+          </p>
+        )}
+        {messageLog.slice(0, VISIBLE_MESSAGE_CAP).map((msg, i) => (
+          <MidiMessageRow key={`${msg.timestamp}-${i}`} msg={msg} />
         ))}
       </div>
     </div>
