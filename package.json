@@ -7,9 +7,10 @@
   "author": "Hunter Carle",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
+    "build": "node scripts/generate-icons.mjs && tsc -b && vite build",
     "preview": "vite preview",
+    "serve": "npm run build && vite preview",
+    "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest"
   },
