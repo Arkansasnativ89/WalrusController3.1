@@ -64,7 +64,8 @@ export const FilterEQDisplay = memo(function FilterEQDisplay({
     const el = containerRef.current;
     if (!el) return;
     const ro = new ResizeObserver(entries => {
-      setContainerWidth(Math.round(entries[0].contentRect.width));
+      const entry = entries[0];
+      if (entry) setContainerWidth(Math.round(entry.contentRect.width));
     });
     ro.observe(el);
     setContainerWidth(Math.round(el.clientWidth));
@@ -99,7 +100,7 @@ export const FilterEQDisplay = memo(function FilterEQDisplay({
       ctx.moveTo(x, 0);
       ctx.lineTo(x, CURVE_H);
       ctx.stroke();
-      ctx.fillText(GRID_LABELS[freq], x, CANVAS_H - 3);
+      ctx.fillText(GRID_LABELS[freq] ?? '', x, CANVAS_H - 3);
     }
 
     // Compute gain at each pixel column
@@ -146,7 +147,7 @@ export const FilterEQDisplay = memo(function FilterEQDisplay({
     // Amber gradient fill below the curve
     ctx.beginPath();
     ctx.moveTo(0, CURVE_H);
-    for (let xi = 0; xi < W; xi++) ctx.lineTo(xi, ys[xi]);
+    for (let xi = 0; xi < W; xi++) ctx.lineTo(xi, ys[xi] ?? 0);
     ctx.lineTo(W - 1, CURVE_H);
     ctx.closePath();
     const grad = ctx.createLinearGradient(0, 0, 0, CURVE_H);
@@ -158,8 +159,8 @@ export const FilterEQDisplay = memo(function FilterEQDisplay({
     // Curve line
     ctx.beginPath();
     for (let xi = 0; xi < W; xi++) {
-      if (xi === 0) ctx.moveTo(xi, ys[xi]);
-      else ctx.lineTo(xi, ys[xi]);
+      if (xi === 0) ctx.moveTo(xi, ys[xi] ?? 0);
+      else ctx.lineTo(xi, ys[xi] ?? 0);
     }
     ctx.strokeStyle = 'rgba(212,144,32,0.88)';
     ctx.lineWidth = 1.5;

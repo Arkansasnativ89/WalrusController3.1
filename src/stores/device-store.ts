@@ -73,14 +73,15 @@ let recallAbortController: AbortController | null = null;
 
 /** Custom Zustand storage adapter backed by Dexie settings table */
 const dexieStorage = {
-  getItem: async (name: string): Promise<string | null> => {
+  getItem: async (name: string) => {
     const row = await db.settings.get(name);
-    return row ? (row.value as string) : null;
+    if (!row) return null;
+    return JSON.parse(row.value as string);
   },
-  setItem: async (name: string, value: string): Promise<void> => {
-    await db.settings.put({ key: name, value });
+  setItem: async (name: string, value: unknown) => {
+    await db.settings.put({ key: name, value: JSON.stringify(value) });
   },
-  removeItem: async (name: string): Promise<void> => {
+  removeItem: async (name: string) => {
     await db.settings.delete(name);
   },
 };
@@ -104,15 +105,15 @@ export const useDeviceStore = create<DeviceState>()(
             // Merge: use persisted values for params that still exist, fill in new params from profile defaults
             const mergedParams: ParameterState = {};
             for (const param of profile.parameters) {
-              mergedParams[param.id] = saved.parameterValues[param.id] !== undefined
-                ? saved.parameterValues[param.id]
+              mergedParams[param.id] = saved.parameterValues[param.id] != null
+                ? saved.parameterValues[param.id]!
                 : param.default;
             }
             const mergedGroups: LinkedGroupState = {};
             for (const param of profile.parameters) {
               if (param.type === 'linked_pair' && param.group) {
-                mergedGroups[param.group] = saved.linkedGroups[param.group] !== undefined
-                  ? saved.linkedGroups[param.group]
+                mergedGroups[param.group] = saved.linkedGroups[param.group] != null
+                  ? saved.linkedGroups[param.group]!
                   : true;
               }
             }
@@ -374,7 +375,7 @@ export const useDeviceStore = create<DeviceState>()(
       partialize: (state) => ({
         devices: state.devices,
         focusedDeviceId: state.focusedDeviceId,
-      }),
+      }) as unknown as DeviceState,
     },
   ),
 );

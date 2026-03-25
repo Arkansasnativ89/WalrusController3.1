@@ -594,7 +594,6 @@ function ACS1ChannelColumn({
 function ACS1Layout({ profile, deviceId }: { profile: DeviceProfile; deviceId: string }) {
   const vals = useDeviceStore((s) => s.devices[deviceId]?.parameterValues ?? {});
   const isGroupLinked = useDeviceStore((s) => s.isGroupLinked);
-  const setGroupLinked = useDeviceStore((s) => s.setGroupLinked);
   const setParamValue = useDeviceStore((s) => s.setParameterValue);
 
   const p = (id: string): DeviceParameter => profile.parameters.find((x) => x.id === id)!;

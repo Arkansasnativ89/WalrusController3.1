@@ -32,14 +32,15 @@ interface PerformanceState {
 
 /** Custom Zustand storage adapter backed by Dexie settings table */
 const dexieStorage = {
-  getItem: async (name: string): Promise<string | null> => {
+  getItem: async (name: string) => {
     const row = await db.settings.get(name);
-    return row ? (row.value as string) : null;
+    if (!row) return null;
+    return JSON.parse(row.value as string);
   },
-  setItem: async (name: string, value: string): Promise<void> => {
-    await db.settings.put({ key: name, value });
+  setItem: async (name: string, value: unknown) => {
+    await db.settings.put({ key: name, value: JSON.stringify(value) });
   },
-  removeItem: async (name: string): Promise<void> => {
+  removeItem: async (name: string) => {
     await db.settings.delete(name);
   },
 };
@@ -86,7 +87,7 @@ export const usePerformanceStore = create<PerformanceState>()(
       storage: dexieStorage,
       partialize: (state) => ({
         setlists: state.setlists,
-      }),
+      }) as unknown as PerformanceState,
     },
   ),
 );
