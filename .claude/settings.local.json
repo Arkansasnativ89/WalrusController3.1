@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(grep -E '\\\\.\\(md|txt|json\\)$')"
+      "Bash(grep -E '\\\\.\\(md|txt|json\\)$')",
+      "Bash(cp \"C:/Users/Hxcar/Documents/_Development/WalrusController3.1/dist/icons/android-chrome-192x192.png\" \"C:/Users/Hxcar/Documents/_Development/WalrusController3.1/public/icons/icon-192.png\")",
+      "Bash(cp \"C:/Users/Hxcar/Documents/_Development/WalrusController3.1/dist/icons/android-chrome-512x512.png\" \"C:/Users/Hxcar/Documents/_Development/WalrusController3.1/public/icons/icon-512.png\")",
+      "Bash(cp \"C:/Users/Hxcar/Documents/_Development/WalrusController3.1/dist/icons/android-chrome-512x512.png\" \"C:/Users/Hxcar/Documents/_Development/WalrusController3.1/public/icons/icon-512-maskable.png\")",
+      "Bash(cp \"C:/Users/Hxcar/Documents/_Development/WalrusController3.1/dist/icons/apple-touch-icon.png\" \"C:/Users/Hxcar/Documents/_Development/WalrusController3.1/public/icons/apple-touch-icon.png\")",
+      "Bash(cp \"C:/Users/Hxcar/Documents/_Development/WalrusController3.1/dist/icons/favicon.ico\" \"C:/Users/Hxcar/Documents/_Development/WalrusController3.1/public/favicon.ico\")"
     ]
   }
 }
